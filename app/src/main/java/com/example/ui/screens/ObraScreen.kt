@@ -72,7 +72,7 @@ fun ObraScreen(
     modifier: Modifier = Modifier
 ) {
     val selectedNovelId by viewModel.selectedNovelId.collectAsStateWithLifecycle()
-    val currentNovel by viewModel.currentNovel.collectAsStateWithLifecycle()
+    val currentNovelState by viewModel.currentNovel.collectAsStateWithLifecycle()
     val activeChapters by viewModel.activeChapters.collectAsStateWithLifecycle()
     val isSynopsisExpanded by viewModel.isSynopsisExpanded.collectAsStateWithLifecycle()
 
@@ -83,7 +83,7 @@ fun ObraScreen(
             .padding(horizontal = 20.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        if (selectedNovelId.isNullOrBlank() || currentNovel == null) {
+        if (selectedNovelId.isNullOrBlank() || currentNovelState == null) {
             // Native Empty State when no novel is selected or loaded
             Card(
                 shape = RoundedCornerShape(16.dp),
@@ -132,6 +132,7 @@ fun ObraScreen(
                 }
             }
         } else {
+            val currentNovel = currentNovelState!!
             // Obra Header Card
             Card(
                 shape = RoundedCornerShape(16.dp),

@@ -9,6 +9,7 @@ import com.example.data.model.MarginNote
 import com.example.data.model.Novel
 import com.example.data.model.Relationship
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.firstOrNull
 import org.json.JSONArray
 import org.json.JSONObject
 import java.text.SimpleDateFormat

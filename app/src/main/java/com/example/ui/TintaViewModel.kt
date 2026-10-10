@@ -11,16 +11,17 @@ import com.example.data.model.CodexEntry
 import com.example.data.model.MarginNote
 import com.example.data.model.Novel
 import com.example.data.model.Relationship
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.Date
 import java.util.Locale
 
 enum class TintaTab(val label: String, val iconName: String) {
@@ -64,13 +65,75 @@ class TintaViewModel(application: Application) : AndroidViewModel(application) {
     private val _selectedGenreFilter = MutableStateFlow("Todos")
     val selectedGenreFilter: StateFlow<String> = _selectedGenreFilter.asStateFlow()
 
+    // selectedNovelId tracks the active novel currently being edited/viewed in Room
+    private val _selectedNovelId = MutableStateFlow<String?>(null)
+    val selectedNovelId: StateFlow<String?> = _selectedNovelId.asStateFlow()
+
+    // activeNovelId alias maintained for backwards compatibility
     private val _activeNovelId = MutableStateFlow("")
     val activeNovelId: StateFlow<String> = _activeNovelId.asStateFlow()
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val currentNovel: StateFlow<Novel?> = _selectedNovelId
+        .flatMapLatest { id ->
+            if (!id.isNullOrBlank()) {
+                repository.getNovelById(id)
+            } else {
+                flowOf(null)
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val activeChapters: StateFlow<List<Chapter>> = _selectedNovelId
+        .flatMapLatest { id ->
+            if (!id.isNullOrBlank()) {
+                repository.getChaptersForNovel(id)
+            } else {
+                flowOf(emptyList())
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val activeCharacters: StateFlow<List<CharacterEntity>> = _selectedNovelId
+        .flatMapLatest { id ->
+            if (!id.isNullOrBlank()) {
+                repository.getCharactersForNovel(id)
+            } else {
+                flowOf(emptyList())
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val activeRelationships: StateFlow<List<Relationship>> = _selectedNovelId
+        .flatMapLatest { id ->
+            if (!id.isNullOrBlank()) {
+                repository.getRelationshipsForNovel(id)
+            } else {
+                flowOf(emptyList())
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _activeChapterId = MutableStateFlow("")
     val activeChapterId: StateFlow<String> = _activeChapterId.asStateFlow()
 
-    // Active Chapter
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val activeNotes: StateFlow<List<MarginNote>> = combine(_selectedNovelId, _activeChapterId) { novelId, chapterId ->
+        Pair(novelId, chapterId)
+    }.flatMapLatest { (novelId, chapterId) ->
+        if (!chapterId.isNullOrBlank()) {
+            repository.getNotesForChapter(chapterId)
+        } else if (!novelId.isNullOrBlank()) {
+            repository.getNotesForNovel(novelId)
+        } else {
+            flowOf(emptyList())
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // Active Chapter State
     private val _chapterContent = MutableStateFlow("")
     val chapterContent: StateFlow<String> = _chapterContent.asStateFlow()
 
@@ -116,25 +179,19 @@ class TintaViewModel(application: Application) : AndroidViewModel(application) {
     private val _backupJsonString = MutableStateFlow<String?>(null)
     val backupJsonString: StateFlow<String?> = _backupJsonString.asStateFlow()
 
-    // Notes for active chapter
-    val activeNotes: StateFlow<List<MarginNote>> = repository.allNotes
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    val activeRelationships: StateFlow<List<Relationship>> = repository.allNovels
-        .combine(_activeNovelId) { novels, novelId ->
-            novelId
-        }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
-        .let {
-            repository.getRelationshipsForNovel("edbti9f")
-                .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-        }
-
     init {
         viewModelScope.launch {
             allNovels.collect { novels ->
-                if (_activeNovelId.value.isEmpty() && novels.isNotEmpty()) {
-                    _activeNovelId.value = novels.first().id
+                if (_selectedNovelId.value.isNullOrBlank() && novels.isNotEmpty()) {
+                    val defaultNovel = novels.firstOrNull { it.isFeatured } ?: novels.first()
+                    _selectedNovelId.value = defaultNovel.id
+                    _activeNovelId.value = defaultNovel.id
+                    
+                    // Auto-select initial chapter if available
+                    val chapters = repository.getChaptersForNovel(defaultNovel.id).firstOrNull() ?: emptyList()
+                    if (chapters.isNotEmpty()) {
+                        selectChapter(chapters.first().id)
+                    }
                 }
             }
         }
@@ -157,24 +214,84 @@ class TintaViewModel(application: Application) : AndroidViewModel(application) {
         _selectedGenreFilter.value = genre
     }
 
-    fun setActiveNovel(novelId: String) {
+    fun selectNovel(novelId: String) {
+        _selectedNovelId.value = novelId
         _activeNovelId.value = novelId
         _currentTab.value = TintaTab.OBRA
+
+        viewModelScope.launch {
+            val chapters = repository.getChaptersForNovel(novelId).firstOrNull() ?: emptyList()
+            if (chapters.isNotEmpty()) {
+                val existing = chapters.find { it.id == _activeChapterId.value }
+                if (existing != null) {
+                    selectChapter(existing.id)
+                } else {
+                    selectChapter(chapters.first().id)
+                }
+            } else {
+                _activeChapterId.value = ""
+                _chapterContent.value = ""
+                _chapterWordCount.value = 0
+                _isChapterFinished.value = false
+            }
+        }
+    }
+
+    fun setActiveNovel(novelId: String) {
+        selectNovel(novelId)
+    }
+
+    fun selectChapter(chapterId: String) {
+        _activeChapterId.value = chapterId
+        viewModelScope.launch {
+            val chapter = repository.getChapterById(chapterId).firstOrNull()
+            chapter?.let {
+                _chapterContent.value = it.content
+                _chapterWordCount.value = it.wordCount
+                _isChapterFinished.value = it.isFinished
+            }
+        }
+    }
+
+    fun createChapter(title: String = "") {
+        val novelId = _selectedNovelId.value
+        if (novelId.isNullOrBlank()) {
+            showToast("Primero selecciona una historia")
+            return
+        }
+        viewModelScope.launch {
+            val currentChapters = repository.getChaptersForNovel(novelId).firstOrNull() ?: emptyList()
+            val nextNum = currentChapters.size + 1
+            val chId = "${novelId}_cap_${System.currentTimeMillis()}"
+            val chTitle = title.ifBlank { "Capítulo $nextNum" }
+            val newChapter = Chapter(
+                id = chId,
+                novelId = novelId,
+                number = nextNum,
+                title = chTitle,
+                actName = "Capítulo $nextNum",
+                content = "",
+                wordCount = 0,
+                isFinished = false,
+                lastSynced = "Ahora"
+            )
+            repository.insertChapter(newChapter)
+            selectChapter(chId)
+            showToast("Capítulo '$chTitle' creado")
+        }
     }
 
     fun openWritingStudio(chapterId: String = "") {
         _currentTab.value = TintaTab.ESCRIBIR
+        val novelId = _selectedNovelId.value ?: return
         viewModelScope.launch {
             val targetChapter = if (chapterId.isNotBlank()) {
                 repository.getChapterById(chapterId).firstOrNull()
             } else {
-                repository.getChaptersForNovel(_activeNovelId.value).firstOrNull()?.firstOrNull()
+                repository.getChaptersForNovel(novelId).firstOrNull()?.firstOrNull()
             }
             targetChapter?.let {
-                _activeChapterId.value = it.id
-                _chapterContent.value = it.content
-                _chapterWordCount.value = it.wordCount
-                _isChapterFinished.value = it.isFinished
+                selectChapter(it.id)
             }
         }
     }
@@ -183,16 +300,22 @@ class TintaViewModel(application: Application) : AndroidViewModel(application) {
         _chapterContent.value = newContent
         val words = newContent.trim().split("\\s+".toRegex()).filter { it.isNotBlank() }.size
         _chapterWordCount.value = words
-        viewModelScope.launch {
-            repository.saveChapterContent(_activeChapterId.value, newContent, words, _activeNovelId.value)
+        val chapterId = _activeChapterId.value
+        val novelId = _selectedNovelId.value ?: _activeNovelId.value
+        if (chapterId.isNotBlank() && novelId.isNotBlank()) {
+            viewModelScope.launch {
+                repository.saveChapterContent(chapterId, newContent, words, novelId)
+            }
         }
     }
 
     fun toggleChapterFinished() {
+        val chapterId = _activeChapterId.value
+        if (chapterId.isBlank()) return
         val newState = !_isChapterFinished.value
         _isChapterFinished.value = newState
         viewModelScope.launch {
-            repository.toggleChapterStatus(_activeChapterId.value, newState)
+            repository.toggleChapterStatus(chapterId, newState)
             showToast(if (newState) "✓ Capítulo marcado como Terminado" else "Borrador Vivo reanudado")
         }
     }
@@ -225,9 +348,11 @@ class TintaViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun addMarginNote(category: String, colorTag: String, content: String, scopeTag: String) {
+        val novelId = _selectedNovelId.value ?: _activeNovelId.value
+        if (novelId.isBlank()) return
         viewModelScope.launch {
             val note = MarginNote(
-                novelId = _activeNovelId.value,
+                novelId = novelId,
                 chapterId = _activeChapterId.value,
                 category = category,
                 colorTag = colorTag,
@@ -277,17 +402,34 @@ class TintaViewModel(application: Application) : AndroidViewModel(application) {
                 synopsis = synopsis
             )
             repository.insertNovel(novel)
+            
+            // Create initial chapter for new novel
+            val initialChapter = Chapter(
+                id = "${id}_cap_1",
+                novelId = id,
+                number = 1,
+                title = "Capítulo 1",
+                actName = "Capítulo 1",
+                content = "",
+                wordCount = 0,
+                isFinished = false,
+                lastSynced = "Ahora"
+            )
+            repository.insertChapter(initialChapter)
+            selectNovel(id)
             _showCreateModal.value = false
             showToast("Novela '$title' creada en biblioteca")
         }
     }
 
     fun createCharacter(name: String, role: String, species: String, bio: String, ability: String) {
+        val novelId = _selectedNovelId.value ?: _activeNovelId.value
+        if (novelId.isBlank()) return
         viewModelScope.launch {
             val id = name.lowercase(Locale.ROOT).replace("[^a-z0-9]".toRegex(), "-")
             val character = CharacterEntity(
                 id = id,
-                novelId = _activeNovelId.value,
+                novelId = novelId,
                 name = name,
                 roleTag = role,
                 epithet = "Ficha de personaje",
@@ -363,10 +505,12 @@ class TintaViewModel(application: Application) : AndroidViewModel(application) {
     fun clearAllStories() {
         viewModelScope.launch {
             repository.clearAllData()
+            _selectedNovelId.value = null
             _activeNovelId.value = ""
             _activeChapterId.value = ""
             _chapterContent.value = ""
             _chapterWordCount.value = 0
+            _isChapterFinished.value = false
             showToast("Biblioteca vaciada. Cero historias.")
         }
     }

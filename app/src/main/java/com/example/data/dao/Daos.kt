@@ -73,6 +73,9 @@ interface MarginNoteDao {
     @Query("SELECT * FROM margin_notes WHERE chapterId = :chapterId ORDER BY id DESC")
     fun getNotesForChapter(chapterId: String): Flow<List<MarginNote>>
 
+    @Query("SELECT * FROM margin_notes WHERE novelId = :novelId ORDER BY id DESC")
+    fun getNotesForNovel(novelId: String): Flow<List<MarginNote>>
+
     @Query("SELECT * FROM margin_notes ORDER BY id DESC")
     fun getAllNotes(): Flow<List<MarginNote>>
 

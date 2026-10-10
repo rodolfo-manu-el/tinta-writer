@@ -1,9 +1,7 @@
 package com.example.ui.screens
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -26,6 +24,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBackIos
 import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
@@ -33,29 +32,30 @@ import androidx.compose.material.icons.filled.Draw
 import androidx.compose.material.icons.filled.FormatQuote
 import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -64,8 +64,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.example.R
 import com.example.data.model.MarginNote
+import com.example.ui.TintaTab
 import com.example.ui.TintaViewModel
 import com.example.ui.theme.NewsreaderFontFamily
 import com.example.ui.theme.PlusJakartaSansFontFamily
@@ -75,6 +75,10 @@ fun EscribirScreen(
     viewModel: TintaViewModel,
     modifier: Modifier = Modifier
 ) {
+    val selectedNovelId by viewModel.selectedNovelId.collectAsStateWithLifecycle()
+    val currentNovel by viewModel.currentNovel.collectAsStateWithLifecycle()
+    val activeChapters by viewModel.activeChapters.collectAsStateWithLifecycle()
+    val activeChapterId by viewModel.activeChapterId.collectAsStateWithLifecycle()
     val chapterContent by viewModel.chapterContent.collectAsStateWithLifecycle()
     val wordCount by viewModel.chapterWordCount.collectAsStateWithLifecycle()
     val isFinished by viewModel.isChapterFinished.collectAsStateWithLifecycle()
@@ -83,7 +87,13 @@ fun EscribirScreen(
     val isZenMode by viewModel.isZenMode.collectAsStateWithLifecycle()
     val marginNotes by viewModel.activeNotes.collectAsStateWithLifecycle()
 
+    var isChapterDropdownExpanded by remember { mutableStateOf(false) }
+
     val readingTimeMin = (wordCount / 250).coerceAtLeast(1)
+    val currentChapter = activeChapters.find { it.id == activeChapterId }
+    val currentChapterIndex = activeChapters.indexOfFirst { it.id == activeChapterId }
+    val hasPreviousChapter = currentChapterIndex > 0
+    val hasNextChapter = currentChapterIndex >= 0 && currentChapterIndex < activeChapters.size - 1
 
     Column(
         modifier = modifier
@@ -92,93 +102,303 @@ fun EscribirScreen(
             .padding(horizontal = 20.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Chapter Switcher & Telemetry Card
-        Card(
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+        if (selectedNovelId.isNullOrBlank() || currentNovel == null) {
+            // Empty State when no novel is selected
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("escribir_empty_state_card")
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Draw,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(44.dp)
+                    )
+                    Text(
+                        text = "No hay ninguna historia seleccionada. Selecciona una historia en la Biblioteca para escribir en el editor.",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        textAlign = TextAlign.Center
+                    )
+                    Button(
+                        onClick = { viewModel.selectTab(TintaTab.BIBLIOTECA) },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                        modifier = Modifier.testTag("empty_state_go_to_biblioteca_button")
+                    ) {
+                        Text("Ir a la Biblioteca")
+                    }
+                }
+            }
+        } else if (activeChapters.isEmpty()) {
+            // Empty chapters state for active novel
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("no_chapters_card")
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.MenuBook,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(44.dp)
+                    )
+                    Text(
+                        text = "La historia '${currentNovel?.title}' aún no tiene ningún capítulo.",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        textAlign = TextAlign.Center
+                    )
+                    Button(
+                        onClick = { viewModel.createChapter() },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                        modifier = Modifier.testTag("create_first_chapter_button")
+                    ) {
+                        Icon(imageVector = Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Crear Primer Capítulo", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        } else {
+            // Chapter Switcher & Telemetry Card
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            IconButton(
+                                onClick = {
+                                    if (hasPreviousChapter) {
+                                        viewModel.selectChapter(activeChapters[currentChapterIndex - 1].id)
+                                    }
+                                },
+                                enabled = hasPreviousChapter,
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(if (hasPreviousChapter) MaterialTheme.colorScheme.surfaceContainerHigh else MaterialTheme.colorScheme.surfaceContainerLow)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowBackIos,
+                                    contentDescription = "Capítulo anterior",
+                                    tint = if (hasPreviousChapter) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+
+                            // Interactive Dropdown Chapter Selector Trigger
+                            Box(modifier = Modifier.weight(1f)) {
+                                Column(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable { isChapterDropdownExpanded = true }
+                                        .padding(vertical = 4.dp, horizontal = 6.dp)
+                                        .testTag("chapter_selector_dropdown_trigger")
+                                ) {
+                                    Text(
+                                        text = currentNovel?.title?.uppercase() ?: "MANUSCRITO EN CURSO",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.Bold,
+                                        letterSpacing = 1.2.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Text(
+                                            text = currentChapter?.let { "Cap. ${it.number}: ${it.title}" } ?: "Seleccionar Capítulo",
+                                            style = MaterialTheme.typography.headlineSmall,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f, fill = false)
+                                        )
+                                        Icon(
+                                            imageVector = Icons.Default.ArrowDropDown,
+                                            contentDescription = "Desplegar capítulos",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                }
+
+                                // Chapter Selector Dropdown Menu
+                                DropdownMenu(
+                                    expanded = isChapterDropdownExpanded,
+                                    onDismissRequest = { isChapterDropdownExpanded = false }
+                                ) {
+                                    activeChapters.forEach { chapter ->
+                                        DropdownMenuItem(
+                                            text = {
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Text(
+                                                        text = "Cap. ${chapter.number}: ${chapter.title}",
+                                                        fontWeight = if (chapter.id == activeChapterId) FontWeight.Bold else FontWeight.Normal,
+                                                        color = if (chapter.id == activeChapterId) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                                    )
+                                                    if (chapter.isFinished) {
+                                                        Text(
+                                                            text = " ✓",
+                                                            color = MaterialTheme.colorScheme.secondary,
+                                                            fontSize = 12.sp,
+                                                            fontWeight = FontWeight.Bold
+                                                        )
+                                                    }
+                                                }
+                                            },
+                                            onClick = {
+                                                viewModel.selectChapter(chapter.id)
+                                                isChapterDropdownExpanded = false
+                                            },
+                                            modifier = Modifier.testTag("chapter_item_${chapter.id}")
+                                        )
+                                    }
+
+                                    DropdownMenuItem(
+                                        text = {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Add,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.primary,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                                Text(
+                                                    text = "Nuevo Capítulo",
+                                                    color = MaterialTheme.colorScheme.primary,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                        },
+                                        onClick = {
+                                            isChapterDropdownExpanded = false
+                                            viewModel.createChapter()
+                                        },
+                                        modifier = Modifier.testTag("create_new_chapter_option")
+                                    )
+                                }
+                            }
+                        }
+
                         IconButton(
-                            onClick = { viewModel.showToast("Cargando capítulo anterior...") },
+                            onClick = {
+                                if (hasNextChapter) {
+                                    viewModel.selectChapter(activeChapters[currentChapterIndex + 1].id)
+                                }
+                            },
+                            enabled = hasNextChapter,
                             modifier = Modifier
                                 .size(36.dp)
                                 .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                                .background(if (hasNextChapter) MaterialTheme.colorScheme.surfaceContainerHigh else MaterialTheme.colorScheme.surfaceContainerLow)
                         ) {
                             Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBackIos,
-                                contentDescription = "Capítulo anterior",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
+                                contentDescription = "Capítulo siguiente",
+                                tint = if (hasNextChapter) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
                                 modifier = Modifier.size(16.dp)
                             )
                         }
+                    }
 
-                        Column(modifier = Modifier.weight(1f)) {
+                    // Sub-bar status and zen toggle
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Surface(
+                                shape = CircleShape,
+                                color = if (isFinished) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer,
+                                modifier = Modifier
+                                    .clip(CircleShape)
+                                    .clickable { viewModel.toggleChapterFinished() }
+                                    .testTag("status_toggle_button")
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.CheckCircle,
+                                        contentDescription = null,
+                                        tint = if (isFinished) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.secondary,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Text(
+                                        text = if (isFinished) "✓ Terminado" else "Borrador Vivo",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = if (isFinished) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSecondaryContainer,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+
                             Text(
-                                text = "MANUSCRITO EN CURSO",
+                                text = "Guardado local automático",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 1.2.sp
-                            )
-                            Text(
-                                text = "Estudio de Redacción",
-                                style = MaterialTheme.typography.headlineSmall,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                    }
 
-                    IconButton(
-                        onClick = { viewModel.showToast("Siguiente capítulo: Cap. 13 en preparación") },
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
-                            contentDescription = "Capítulo siguiente",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                }
-
-                // Sub-bar status and zen toggle
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
                         Surface(
                             shape = CircleShape,
-                            color = if (isFinished) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer,
+                            color = MaterialTheme.colorScheme.surfaceContainerHighest,
                             modifier = Modifier
                                 .clip(CircleShape)
-                                .clickable { viewModel.toggleChapterFinished() }
-                                .testTag("status_toggle_button")
+                                .clickable { viewModel.toggleZenMode() }
+                                .testTag("zen_mode_button")
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -186,287 +406,252 @@ fun EscribirScreen(
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.CheckCircle,
+                                    imageVector = Icons.Default.Fullscreen,
                                     contentDescription = null,
-                                    tint = if (isFinished) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.secondary,
-                                    modifier = Modifier.size(14.dp)
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(16.dp)
                                 )
                                 Text(
-                                    text = if (isFinished) "✓ Terminado" else "Borrador Vivo",
+                                    text = "Inmersivo",
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = if (isFinished) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSecondaryContainer,
+                                    color = MaterialTheme.colorScheme.primary,
                                     fontWeight = FontWeight.Bold
                                 )
                             }
                         }
-
-                        Text(
-                            text = "Guardado local automático",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
-                    Surface(
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.surfaceContainerHighest,
-                        modifier = Modifier
-                            .clip(CircleShape)
-                            .clickable { viewModel.toggleZenMode() }
-                            .testTag("zen_mode_button")
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Fullscreen,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Text(
-                                text = "Inmersivo",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
                     }
                 }
             }
-        }
 
-        // Floating Writer Toolbar (Thumb friendly)
-        Card(
-            shape = RoundedCornerShape(14.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(
-                modifier = Modifier.padding(10.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+            // Floating Writer Toolbar
+            Card(
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+                modifier = Modifier.fillMaxWidth()
             ) {
-                // Row 1: Paper textures & font family
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                Column(
+                    modifier = Modifier.padding(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    // Row 1: Paper textures & font family
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        modifier = Modifier.horizontalScroll(rememberScrollState())
-                    ) {
-                        TextureChip(
-                            icon = "📄",
-                            label = "Limpio",
-                            isSelected = paperTexture == "plain",
-                            onClick = { viewModel.setPaperTexture("plain") }
-                        )
-                        TextureChip(
-                            icon = "📜",
-                            label = "Pergamino",
-                            isSelected = paperTexture == "parchment",
-                            onClick = { viewModel.setPaperTexture("parchment") }
-                        )
-                        TextureChip(
-                            icon = "📓",
-                            label = "Rayado",
-                            isSelected = paperTexture == "lined",
-                            onClick = { viewModel.setPaperTexture("lined") }
-                        )
-                        TextureChip(
-                            icon = "🔲",
-                            label = "Cuadrícula",
-                            isSelected = paperTexture == "grid",
-                            onClick = { viewModel.setPaperTexture("grid") }
-                        )
-                    }
-
-                    Surface(
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                        modifier = Modifier
-                            .clip(CircleShape)
-                            .clickable { viewModel.toggleFont() }
-                            .testTag("font_family_button")
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(
-                            verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                            modifier = Modifier.horizontalScroll(rememberScrollState())
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.FormatSize,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(15.dp)
+                            TextureChip(
+                                icon = "📄",
+                                label = "Limpio",
+                                isSelected = paperTexture == "plain",
+                                onClick = { viewModel.setPaperTexture("plain") }
                             )
-                            Text(
-                                text = selectedFont,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                fontWeight = FontWeight.Bold
+                            TextureChip(
+                                icon = "📜",
+                                label = "Pergamino",
+                                isSelected = paperTexture == "parchment",
+                                onClick = { viewModel.setPaperTexture("parchment") }
+                            )
+                            TextureChip(
+                                icon = "📓",
+                                label = "Rayado",
+                                isSelected = paperTexture == "lined",
+                                onClick = { viewModel.setPaperTexture("lined") }
+                            )
+                            TextureChip(
+                                icon = "🔲",
+                                label = "Cuadrícula",
+                                isSelected = paperTexture == "grid",
+                                onClick = { viewModel.setPaperTexture("grid") }
                             )
                         }
-                    }
-                }
 
-                // Row 2: Formatting shortcuts & Live word counter
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        FormatButton(text = "B", isBold = true, onClick = { viewModel.showToast("Negrita aplicada") })
-                        FormatButton(text = "I", isItalic = true, onClick = { viewModel.showToast("Cursiva aplicada") })
-                        FormatIconButton(icon = Icons.Default.FormatQuote, onClick = { viewModel.showToast("Cita en bloque insertada") })
                         Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = MaterialTheme.colorScheme.primaryContainer,
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.surfaceContainerHigh,
                             modifier = Modifier
-                                .size(32.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .clickable { viewModel.showToast("Chispa creativa: sugerencia de metáfora aplicada") },
-                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                .clip(CircleShape)
+                                .clickable { viewModel.toggleFont() }
+                                .testTag("font_family_button")
                         ) {
-                            Box(contentAlignment = Alignment.Center) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                            ) {
                                 Icon(
-                                    imageVector = Icons.Default.AutoFixHigh,
-                                    contentDescription = "Chispa",
-                                    modifier = Modifier.size(16.dp)
+                                    imageVector = Icons.Default.FormatSize,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                                Text(
+                                    text = selectedFont,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    fontWeight = FontWeight.Bold
                                 )
                             }
                         }
                     }
 
-                    // Live Counter
-                    Surface(
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.surfaceContainerHighest
+                    // Row 2: Formatting shortcuts & Live word counter
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                        ) {
-                            Box(
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            FormatButton(text = "B", isBold = true, onClick = { viewModel.showToast("Negrita aplicada") })
+                            FormatButton(text = "I", isItalic = true, onClick = { viewModel.showToast("Cursiva aplicada") })
+                            FormatIconButton(icon = Icons.Default.FormatQuote, onClick = { viewModel.showToast("Cita en bloque insertada") })
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.primaryContainer,
                                 modifier = Modifier
-                                    .size(6.dp)
-                                    .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.primary)
-                            )
-                            Text(
-                                text = "${String.format("%,d", wordCount).replace(',', '.')} palabras",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "· $readingTimeMin min",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                                    .size(32.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { viewModel.showToast("Chispa creativa: sugerencia de metáfora aplicada") },
+                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.AutoFixHigh,
+                                        contentDescription = "Chispa",
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        // Live Counter
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.surfaceContainerHighest
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(6.dp)
+                                        .clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.primary)
+                                )
+                                Text(
+                                    text = "${String.format("%,d", wordCount).replace(',', '.')} palabras",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "· $readingTimeMin min",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                     }
                 }
             }
-        }
 
-        // Manuscript Canvas (Editorial Live Writing Canvas)
-        val canvasBg = when (paperTexture) {
-            "parchment" -> MaterialTheme.colorScheme.surfaceContainer
-            "lined" -> MaterialTheme.colorScheme.surfaceContainerHigh
-            "grid" -> MaterialTheme.colorScheme.surfaceContainerLowest
-            else -> MaterialTheme.colorScheme.surfaceContainerLow
-        }
+            // Manuscript Canvas (Editorial Live Writing Canvas)
+            val canvasBg = when (paperTexture) {
+                "parchment" -> MaterialTheme.colorScheme.surfaceContainer
+                "lined" -> MaterialTheme.colorScheme.surfaceContainerHigh
+                "grid" -> MaterialTheme.colorScheme.surfaceContainerLowest
+                else -> MaterialTheme.colorScheme.surfaceContainerLow
+            }
 
-        Surface(
-            shape = RoundedCornerShape(16.dp),
-            color = canvasBg,
-            tonalElevation = 2.dp,
-            border = if (isZenMode) BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)) else null,
-            modifier = Modifier
-                .fillMaxWidth()
-                .testTag("manuscript_canvas")
-        ) {
-            Column(
-                modifier = Modifier.padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = canvasBg,
+                tonalElevation = 2.dp,
+                border = if (isZenMode) BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)) else null,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("manuscript_canvas")
             ) {
-                // Header with icon
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    Text(
-                        text = "✍️",
-                        style = MaterialTheme.typography.headlineSmall
-                    )
-                    Text(
-                        text = "BORRADOR MAESTRO",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        letterSpacing = 1.4.sp
-                    )
-                }
-
-                // Interactive Text Editor
-                val editorFontFamily = if (selectedFont == "Newsreader") NewsreaderFontFamily else PlusJakartaSansFontFamily
-                BasicTextField(
-                    value = chapterContent,
-                    onValueChange = { viewModel.updateChapterContent(it) },
-                    textStyle = TextStyle(
-                        fontFamily = editorFontFamily,
-                        fontSize = 17.sp,
-                        lineHeight = 28.sp,
-                        color = MaterialTheme.colorScheme.onSurface
-                    ),
-                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(340.dp)
-                        .testTag("editable_manuscript_text")
-                )
-
-                // Footer Status
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                    // Header with icon & title
                     Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Draw,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(14.dp)
+                        Text(
+                            text = "✍️",
+                            style = MaterialTheme.typography.headlineSmall
                         )
                         Text(
-                            text = "Tinta activa",
+                            text = currentChapter?.title?.uppercase() ?: "BORRADOR MAESTRO",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            letterSpacing = 1.4.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+
+                    // Interactive Text Editor (Persists directly to Chapter entity in Room)
+                    val editorFontFamily = if (selectedFont == "Newsreader") NewsreaderFontFamily else PlusJakartaSansFontFamily
+                    BasicTextField(
+                        value = chapterContent,
+                        onValueChange = { viewModel.updateChapterContent(it) },
+                        textStyle = TextStyle(
+                            fontFamily = editorFontFamily,
+                            fontSize = 17.sp,
+                            lineHeight = 28.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        ),
+                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(340.dp)
+                            .testTag("editable_manuscript_text")
+                    )
+
+                    // Footer Status
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Draw,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Text(
+                                text = "Tinta activa",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Text(
+                            text = "${chapterContent.length} caracteres",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    Text(
-                        text = "${chapterContent.length} caracteres",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
                 }
             }
         }
 
-        // Atmósfera Visual Banner
-        SectionVisualAtmosphere()
-
-        // Notas al Margen (Post-it notes)
+        // Section Margin Notes
         SectionMarginNotes(
             notes = marginNotes,
             onAddPostIt = { viewModel.openCreateModal("note") },
@@ -554,71 +739,6 @@ private fun FormatIconButton(
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(16.dp)
             )
-        }
-    }
-}
-
-@Composable
-private fun SectionVisualAtmosphere() {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "Atmósfera Visual",
-                style = MaterialTheme.typography.headlineSmall,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Text(
-                text = "ESCENARIO",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.primary,
-                letterSpacing = 1.sp
-            )
-        }
-
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(170.dp)
-                .clip(RoundedCornerShape(16.dp))
-                .background(MaterialTheme.colorScheme.surfaceContainerLowest)
-        ) {
-            Image(
-                painter = painterResource(id = R.drawable.scene_atmosphere),
-                contentDescription = "Atmósfera Visual",
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            )
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(Color.Transparent, Color.Black.copy(alpha = 0.85f))
-                        )
-                    )
-            )
-            Column(
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(14.dp)
-            ) {
-                Text(
-                    text = "REFERENCIA DE ESCENA",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.secondary,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp
-                )
-                Text(
-                    text = "El Puente de la Corveta Sombra · Nivel de Presión 0.8 atm",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
         }
     }
 }

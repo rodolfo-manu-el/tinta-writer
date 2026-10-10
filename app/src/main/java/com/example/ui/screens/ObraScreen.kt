@@ -71,12 +71,10 @@ fun ObraScreen(
     viewModel: TintaViewModel,
     modifier: Modifier = Modifier
 ) {
-    val activeNovelId by viewModel.activeNovelId.collectAsStateWithLifecycle()
-    val novels by viewModel.allNovels.collectAsStateWithLifecycle()
+    val selectedNovelId by viewModel.selectedNovelId.collectAsStateWithLifecycle()
+    val currentNovel by viewModel.currentNovel.collectAsStateWithLifecycle()
+    val activeChapters by viewModel.activeChapters.collectAsStateWithLifecycle()
     val isSynopsisExpanded by viewModel.isSynopsisExpanded.collectAsStateWithLifecycle()
-
-    val currentNovel = novels.firstOrNull { it.id == activeNovelId }
-        ?: novels.firstOrNull()
 
     Column(
         modifier = modifier
@@ -85,8 +83,8 @@ fun ObraScreen(
             .padding(horizontal = 20.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        if (currentNovel == null) {
-            // Native Empty State when no novel is loaded/exists
+        if (selectedNovelId.isNullOrBlank() || currentNovel == null) {
+            // Native Empty State when no novel is selected or loaded
             Card(
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
@@ -109,7 +107,7 @@ fun ObraScreen(
                         modifier = Modifier.size(44.dp)
                     )
                     Text(
-                        text = "No tienes historias guardadas. Comienza a escribir o importa tu archivo .json",
+                        text = "No hay ninguna historia seleccionada. Selecciona una historia en la Biblioteca para ver sus detalles.",
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurface,
                         textAlign = TextAlign.Center
@@ -118,17 +116,17 @@ fun ObraScreen(
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Button(
-                            onClick = { viewModel.openCreateModal("novel") },
+                            onClick = { viewModel.selectTab(com.example.ui.TintaTab.BIBLIOTECA) },
                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                            modifier = Modifier.testTag("empty_state_go_to_biblioteca_button")
+                        ) {
+                            Text("Ir a la Biblioteca")
+                        }
+                        OutlinedButton(
+                            onClick = { viewModel.openCreateModal("novel") },
                             modifier = Modifier.testTag("empty_state_create_novel_button")
                         ) {
                             Text("Crear historia")
-                        }
-                        OutlinedButton(
-                            onClick = { viewModel.openImportDialog() },
-                            modifier = Modifier.testTag("empty_state_import_json_button")
-                        ) {
-                            Text("Importar .json")
                         }
                     }
                 }

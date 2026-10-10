@@ -77,8 +77,9 @@ fun PersonajesScreen(
     viewModel: TintaViewModel,
     modifier: Modifier = Modifier
 ) {
+    val selectedNovelId by viewModel.selectedNovelId.collectAsStateWithLifecycle()
     val personajesTab by viewModel.personajesTab.collectAsStateWithLifecycle()
-    val characters by viewModel.allCharacters.collectAsStateWithLifecycle()
+    val characters by viewModel.activeCharacters.collectAsStateWithLifecycle()
     val relationships by viewModel.activeRelationships.collectAsStateWithLifecycle()
 
     Column(
@@ -225,8 +226,7 @@ fun PersonajesScreen(
             }
         }
 
-        if (characters.isEmpty()) {
-            // Native empty state when no characters exist
+        if (selectedNovelId.isNullOrBlank()) {
             Card(
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
@@ -249,7 +249,49 @@ fun PersonajesScreen(
                         modifier = Modifier.size(44.dp)
                     )
                     Text(
-                        text = "No tienes personajes guardados. Comienza a escribir o importa tu archivo .json",
+                        text = "No hay ninguna historia seleccionada. Selecciona una historia en la Biblioteca para gestionar sus personajes.",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        textAlign = TextAlign.Center
+                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Button(
+                            onClick = { viewModel.selectTab(com.example.ui.TintaTab.BIBLIOTECA) },
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
+                            modifier = Modifier.testTag("empty_state_go_to_biblioteca_button")
+                        ) {
+                            Text("Ir a la Biblioteca")
+                        }
+                    }
+                }
+            }
+        } else if (characters.isEmpty()) {
+            // Native empty state when no characters exist for active novel
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("personajes_empty_state_card")
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Group,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.size(44.dp)
+                    )
+                    Text(
+                        text = "Esta historia aún no tiene personajes guardados. Comienza a añadir personajes a tu elenco.",
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurface,
                         textAlign = TextAlign.Center

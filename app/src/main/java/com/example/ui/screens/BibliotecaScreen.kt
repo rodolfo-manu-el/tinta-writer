@@ -169,8 +169,11 @@ fun BibliotecaScreen(
             featuredNovel?.let { novel ->
                 SectionFeaturedNovel(
                     novel = novel,
-                    onContinueWriting = { viewModel.openWritingStudio("cap-12") },
-                    onNovelDetails = { viewModel.setActiveNovel(novel.id) }
+                    onContinueWriting = {
+                        viewModel.selectNovel(novel.id)
+                        viewModel.openWritingStudio()
+                    },
+                    onNovelDetails = { viewModel.selectNovel(novel.id) }
                 )
             }
 
@@ -178,7 +181,7 @@ fun BibliotecaScreen(
             if (secondaryNovels.isNotEmpty()) {
                 SectionSecondaryNovels(
                     novels = secondaryNovels,
-                    onSelectNovel = { novelId -> viewModel.setActiveNovel(novelId) },
+                    onSelectNovel = { novelId -> viewModel.selectNovel(novelId) },
                     onViewAll = { viewModel.showToast("Mostrando catálogo de ${novels.size} manuscritos") }
                 )
             }

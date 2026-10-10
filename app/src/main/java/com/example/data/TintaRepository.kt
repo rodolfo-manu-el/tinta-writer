@@ -31,6 +31,9 @@ class TintaRepository(private val database: AppDatabase) {
     fun getNotesForChapter(chapterId: String): Flow<List<MarginNote>> =
         database.marginNoteDao().getNotesForChapter(chapterId)
 
+    fun getNotesForNovel(novelId: String): Flow<List<MarginNote>> =
+        database.marginNoteDao().getNotesForNovel(novelId)
+
     fun getCharactersForNovel(novelId: String): Flow<List<CharacterEntity>> =
         database.characterDao().getCharactersForNovel(novelId)
 
@@ -41,8 +44,11 @@ class TintaRepository(private val database: AppDatabase) {
         val currentTime = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
         database.chapterDao().updateChapterContent(chapterId, content, wordCount, currentTime)
         
-        // Also update novel aggregate words
-        database.novelDao().updateNovelMetrics(novelId, 24150 + (wordCount - 1420).coerceAtLeast(0), 42)
+        val chapters = database.chapterDao().getChaptersByNovel(novelId).firstOrNull() ?: emptyList()
+        val totalWords = chapters.sumOf { if (it.id == chapterId) wordCount else it.wordCount }
+        val completed = chapters.count { it.isFinished }
+        val progress = if (chapters.isNotEmpty()) ((completed.toFloat() / chapters.size) * 100).toInt() else 0
+        database.novelDao().updateNovelMetrics(novelId, totalWords, progress)
     }
 
     suspend fun toggleChapterStatus(chapterId: String, isFinished: Boolean) {

@@ -34,6 +34,13 @@ enum class TintaTab(val label: String, val iconName: String) {
     RECURSOS("Recursos", "auto_awesome")
 }
 
+/** Opciones de filtro disponibles en la Biblioteca. */
+enum class FilterOption(val label: String) {
+    ALL("Todos"),
+    IN_PROGRESS("En progreso"),
+    COMPLETED("Terminadas")
+}
+
 class TintaViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository: TintaRepository
@@ -66,6 +73,41 @@ class TintaViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _selectedGenreFilter = MutableStateFlow("Todos")
     val selectedGenreFilter: StateFlow<String> = _selectedGenreFilter.asStateFlow()
+
+    private val _selectedFilter = MutableStateFlow(FilterOption.ALL)
+    val selectedFilter: StateFlow<FilterOption> = _selectedFilter.asStateFlow()
+
+    /**
+     * Lista de novelas filtrada reactivamente.
+     * Combina el flujo de Room con [searchQuery] y [selectedFilter] para
+     * actualizar la UI en tiempo real sin consultas adicionales a la BD.
+     */
+    val filteredNovels: StateFlow<List<Novel>> = combine(
+        repository.allNovels,
+        _searchQuery,
+        _selectedFilter
+    ) { novels, query, filter ->
+        novels.filter { novel ->
+            val matchesQuery = query.isBlank() ||
+                novel.title.contains(query, ignoreCase = true) ||
+                novel.synopsis.contains(query, ignoreCase = true) ||
+                novel.genre.contains(query, ignoreCase = true)
+
+            val matchesFilter = when (filter) {
+                FilterOption.ALL -> true
+                FilterOption.COMPLETED -> novel.status.equals("Terminada", ignoreCase = true) ||
+                    novel.status.equals("Revisión", ignoreCase = true)
+                FilterOption.IN_PROGRESS -> !novel.status.equals("Terminada", ignoreCase = true) &&
+                    !novel.status.equals("Revisión", ignoreCase = true)
+            }
+
+            matchesQuery && matchesFilter
+        }
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyList()
+    )
 
     // selectedNovelId tracks the active novel currently being edited/viewed in Room
     private val _selectedNovelId = MutableStateFlow<String?>(null)
@@ -214,6 +256,23 @@ class TintaViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setGenreFilter(genre: String) {
         _selectedGenreFilter.value = genre
+    }
+
+    // --- Métodos de evento para búsqueda y filtros reactivos ---
+
+    /** Actualiza la consulta de búsqueda; dispara el re-filtrado de [filteredNovels]. */
+    fun onSearchQueryChanged(newQuery: String) {
+        _searchQuery.value = newQuery
+    }
+
+    /** Selecciona una opción de filtro; dispara el re-filtrado de [filteredNovels]. */
+    fun onFilterSelected(filter: FilterOption) {
+        _selectedFilter.value = filter
+    }
+
+    /** Limpia el campo de búsqueda; restaura la lista sin filtro de texto. */
+    fun clearSearchQuery() {
+        _searchQuery.value = ""
     }
 
     fun selectNovel(novelId: String) {

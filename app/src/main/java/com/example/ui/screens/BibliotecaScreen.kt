@@ -25,9 +25,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Create
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.DownloadForOffline
-import androidx.compose.material.icons.filled.Create
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Search
@@ -38,6 +39,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -66,6 +69,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.R
 import com.example.data.model.Novel
+import com.example.ui.FilterOption
 import com.example.ui.TintaViewModel
 
 @Composable
@@ -73,9 +77,10 @@ fun BibliotecaScreen(
     viewModel: TintaViewModel,
     modifier: Modifier = Modifier
 ) {
-    val novels by viewModel.allNovels.collectAsStateWithLifecycle()
+    val allNovels by viewModel.allNovels.collectAsStateWithLifecycle()
+    val novels by viewModel.filteredNovels.collectAsStateWithLifecycle()
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
-    val selectedGenre by viewModel.selectedGenreFilter.collectAsStateWithLifecycle()
+    val selectedFilter by viewModel.selectedFilter.collectAsStateWithLifecycle()
 
     val featuredNovel = novels.firstOrNull { it.isFeatured } ?: novels.firstOrNull()
     val secondaryNovels = novels.filter { it.id != featuredNovel?.id }
@@ -89,35 +94,44 @@ fun BibliotecaScreen(
     ) {
         // Author Greeting & Status
         SectionGreeting(
-            hasNovels = novels.isNotEmpty(),
+            hasNovels = allNovels.isNotEmpty(),
             onStreakClick = { viewModel.showToast("Tinta & Trama listo para escribir") }
         )
 
         // Stat Pills Row
         StatPillsRow(
-            totalNovels = novels.size,
-            totalWords = novels.sumOf { it.wordCount }
+            totalNovels = allNovels.size,
+            totalWords = allNovels.sumOf { it.wordCount }
         )
 
         // Search & Filter
         SearchAndFilterBar(
             searchQuery = searchQuery,
-            onSearchChange = { viewModel.setSearchQuery(it) },
-            onNewStoryClick = { viewModel.openCreateModal("novel") },
+            selectedFilter = selectedFilter,
+            onSearchChange = { viewModel.onSearchQueryChanged(it) },
+            onClearSearch = { viewModel.clearSearchQuery() },
             onFilterClick = {
-                val nextGenre = when (selectedGenre) {
-                    "Todos" -> "Ciencia Ficción"
-                    "Ciencia Ficción" -> "Fantasía Oscura"
-                    "Fantasía Oscura" -> "Solarpunk"
-                    else -> "Todos"
+                val nextFilter = when (selectedFilter) {
+                    FilterOption.ALL -> FilterOption.IN_PROGRESS
+                    FilterOption.IN_PROGRESS -> FilterOption.COMPLETED
+                    FilterOption.COMPLETED -> FilterOption.ALL
                 }
-                viewModel.setGenreFilter(nextGenre)
-                viewModel.showToast("Filtro: $nextGenre")
+                viewModel.onFilterSelected(nextFilter)
+                viewModel.showToast("Filtro: ${nextFilter.label}")
+            },
+            onNewStoryClick = { viewModel.openCreateModal("novel") }
+        )
+
+        // Chips de Filtro
+        FilterChipsRow(
+            selectedFilter = selectedFilter,
+            onFilterSelected = { filter ->
+                viewModel.onFilterSelected(filter)
             }
         )
 
         // Novels Content or Empty State
-        if (novels.isEmpty()) {
+        if (allNovels.isEmpty()) {
             Card(
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
@@ -161,6 +175,46 @@ fun BibliotecaScreen(
                         ) {
                             Text("Importar .json")
                         }
+                    }
+                }
+            }
+        } else if (novels.isEmpty()) {
+            // No search/filter results
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("no_results_card")
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(44.dp)
+                    )
+                    Text(
+                        text = "No se encontraron historias para \"$searchQuery\" con el filtro ${selectedFilter.label}.",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        textAlign = TextAlign.Center
+                    )
+                    OutlinedButton(
+                        onClick = {
+                            viewModel.clearSearchQuery()
+                            viewModel.onFilterSelected(FilterOption.ALL)
+                        },
+                        modifier = Modifier.testTag("reset_filters_button")
+                    ) {
+                        Text("Restablecer búsqueda y filtros")
                     }
                 }
             }
@@ -311,9 +365,11 @@ private fun StatPill(
 @Composable
 private fun SearchAndFilterBar(
     searchQuery: String,
+    selectedFilter: FilterOption,
     onSearchChange: (String) -> Unit,
-    onNewStoryClick: () -> Unit,
-    onFilterClick: () -> Unit
+    onClearSearch: () -> Unit,
+    onFilterClick: () -> Unit,
+    onNewStoryClick: () -> Unit
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -338,6 +394,21 @@ private fun SearchAndFilterBar(
                     modifier = Modifier.size(18.dp)
                 )
             },
+            trailingIcon = {
+                if (searchQuery.isNotBlank()) {
+                    IconButton(
+                        onClick = onClearSearch,
+                        modifier = Modifier.testTag("clear_search_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Limpiar búsqueda",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+            },
             singleLine = true,
             shape = RoundedCornerShape(12.dp),
             colors = OutlinedTextFieldDefaults.colors(
@@ -357,13 +428,21 @@ private fun SearchAndFilterBar(
             modifier = Modifier
                 .size(48.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                .background(
+                    if (selectedFilter != FilterOption.ALL)
+                        MaterialTheme.colorScheme.primaryContainer
+                    else
+                        MaterialTheme.colorScheme.surfaceContainerHigh
+                )
                 .testTag("filter_button")
         ) {
             Icon(
                 imageVector = Icons.Default.Tune,
-                contentDescription = "Filtrar por género",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                contentDescription = "Filtrar por estado",
+                tint = if (selectedFilter != FilterOption.ALL)
+                    MaterialTheme.colorScheme.onPrimaryContainer
+                else
+                    MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(20.dp)
             )
         }
@@ -386,6 +465,39 @@ private fun SearchAndFilterBar(
             )
             Spacer(modifier = Modifier.width(4.dp))
             Text("Nueva", style = MaterialTheme.typography.labelMedium)
+        }
+    }
+}
+
+@Composable
+private fun FilterChipsRow(
+    selectedFilter: FilterOption,
+    onFilterSelected: (FilterOption) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        FilterOption.values().forEach { option ->
+            FilterChip(
+                selected = selectedFilter == option,
+                onClick = { onFilterSelected(option) },
+                label = {
+                    Text(
+                        text = option.label,
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = MaterialTheme.colorScheme.primary,
+                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary
+                ),
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.testTag("filter_chip_${option.name.lowercase()}")
+            )
         }
     }
 }

@@ -1,5 +1,7 @@
 package com.example.data
 
+import android.content.Context
+import android.net.Uri
 import com.example.data.model.Chapter
 import com.example.data.model.CharacterEntity
 import com.example.data.model.CodexEntry
@@ -86,6 +88,20 @@ class TintaRepository(private val database: AppDatabase) {
         database.characterDao().deleteAllCharacters()
         database.relationshipDao().deleteAllRelationships()
         database.codexDao().deleteAllCodexEntries()
+    }
+
+    suspend fun importJsonFromUri(context: Context, uri: Uri): Boolean {
+        return try {
+            val jsonString = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+            if (!jsonString.isNullOrBlank()) {
+                importJsonData(jsonString)
+            } else {
+                false
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
     }
 
     suspend fun importJsonData(jsonString: String): Boolean {

@@ -25,6 +25,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -160,9 +161,11 @@ class MainActivity : ComponentActivity() {
                         }
 
                         if (showImportDialog) {
+                            val context = LocalContext.current
                             ImportJsonDialog(
                                 onDismiss = { viewModel.closeImportDialog() },
                                 onImportJson = { viewModel.importJson(it) },
+                                onImportUri = { uri -> viewModel.importJsonFromUri(context, uri) },
                                 onLoadSummerLove = { viewModel.loadSummerLoveStory() },
                                 onClearAll = { viewModel.clearAllStories() }
                             )

@@ -1,6 +1,8 @@
 package com.example.ui
 
 import android.app.Application
+import android.content.Context
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.AppDatabase
@@ -476,10 +478,32 @@ class TintaViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val success = repository.importJsonData(jsonString)
             if (success) {
+                val novels = repository.allNovels.firstOrNull() ?: emptyList()
+                if (novels.isNotEmpty()) {
+                    val lastImported = novels.firstOrNull { it.lastEdited == "Recién importado" } ?: novels.first()
+                    selectNovel(lastImported.id)
+                }
                 showToast("¡Biblioteca importada con éxito!")
                 _showImportDialog.value = false
             } else {
                 showToast("El archivo no tiene el formato válido de Tinta & Trama")
+            }
+        }
+    }
+
+    fun importJsonFromUri(context: Context, uri: Uri) {
+        viewModelScope.launch {
+            val success = repository.importJsonFromUri(context, uri)
+            if (success) {
+                val novels = repository.allNovels.firstOrNull() ?: emptyList()
+                if (novels.isNotEmpty()) {
+                    val lastImported = novels.firstOrNull { it.lastEdited == "Recién importado" } ?: novels.first()
+                    selectNovel(lastImported.id)
+                }
+                showToast("¡Biblioteca importada con éxito desde archivo!")
+                _showImportDialog.value = false
+            } else {
+                showToast("El archivo seleccionado no contiene un JSON de Tinta válido")
             }
         }
     }

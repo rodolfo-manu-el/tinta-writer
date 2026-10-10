@@ -1,5 +1,8 @@
 package com.example.ui.components
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -30,6 +33,7 @@ import androidx.compose.material.icons.filled.HistoryEdu
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.LocalLibrary
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.filled.ViewTimeline
 import androidx.compose.material3.Button
@@ -574,10 +578,19 @@ fun BackupDialog(
 fun ImportJsonDialog(
     onDismiss: () -> Unit,
     onImportJson: (String) -> Unit,
+    onImportUri: (Uri) -> Unit = {},
     onLoadSummerLove: () -> Unit,
     onClearAll: () -> Unit
 ) {
     var jsonText by remember { mutableStateOf("") }
+
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        uri?.let {
+            onImportUri(it)
+        }
+    }
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -606,6 +619,33 @@ fun ImportJsonDialog(
                     }
                 }
 
+                // Primary SAF File Picker Button
+                Button(
+                    onClick = {
+                        filePickerLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
+                    },
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("saf_import_file_button")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.UploadFile,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "📁 Seleccionar archivo .json del almacenamiento",
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                }
+
                 Button(
                     onClick = onLoadSummerLove,
                     shape = RoundedCornerShape(10.dp),
@@ -619,7 +659,7 @@ fun ImportJsonDialog(
                 }
 
                 Text(
-                    text = "O pega el contenido de tu archivo .json exportado:",
+                    text = "O pega el contenido de tu archivo .json directamente:",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -628,8 +668,8 @@ fun ImportJsonDialog(
                     value = jsonText,
                     onValueChange = { jsonText = it },
                     placeholder = { Text("{\"app\":\"tinta-y-trama\", \"books\":[...]}") },
-                    minLines = 4,
-                    maxLines = 6,
+                    minLines = 3,
+                    maxLines = 5,
                     modifier = Modifier.fillMaxWidth()
                 )
 
@@ -644,12 +684,12 @@ fun ImportJsonDialog(
                             }
                         },
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary
+                            containerColor = MaterialTheme.colorScheme.secondary,
+                            contentColor = MaterialTheme.colorScheme.onSecondary
                         ),
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text("Importar", fontWeight = FontWeight.Bold)
+                        Text("Importar Texto", fontWeight = FontWeight.Bold)
                     }
 
                     TextButton(

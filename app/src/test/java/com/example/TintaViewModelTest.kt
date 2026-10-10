@@ -3,9 +3,10 @@ package com.example
 import com.example.data.model.Chapter
 import com.example.data.model.CharacterEntity
 import com.example.data.model.Novel
+import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class TintaViewModelTest {
@@ -71,5 +72,56 @@ class TintaViewModelTest {
         val text = "Tinta y Trama es una gran aplicación de escritura"
         val words = text.trim().split("\\s+".toRegex()).filter { it.isNotBlank() }.size
         assertEquals(8, words)
+    }
+
+    @Test
+    fun `test json import parsing structure`() {
+        val jsonPayload = """
+            {
+              "app": "tinta-y-trama",
+              "books": [
+                {
+                  "id": "obra-test-1",
+                  "title": "Viaje Estelar",
+                  "syn": "Una odisea en el espacio",
+                  "target": 15,
+                  "g": "Ciencia Ficción",
+                  "chapters": [
+                    {
+                      "id": "cap-1",
+                      "t": "Despegue",
+                      "txt": "El motor encendió...",
+                      "done": true
+                    }
+                  ],
+                  "chars": [
+                    {
+                      "id": "c-1",
+                      "n": "Capitana Orion",
+                      "r": "Protagonista",
+                      "p": "Líder de la nave"
+                    }
+                  ]
+                }
+              ]
+            }
+        """.trimIndent()
+
+        val root = JSONObject(jsonPayload)
+        assertTrue(root.has("books"))
+        val books = root.getJSONArray("books")
+        assertEquals(1, books.length())
+        
+        val book = books.getJSONObject(0)
+        assertEquals("Viaje Estelar", book.getString("title"))
+        assertEquals("obra-test-1", book.getString("id"))
+        
+        val chapters = book.getJSONArray("chapters")
+        assertEquals(1, chapters.length())
+        assertEquals("Despegue", chapters.getJSONObject(0).getString("t"))
+
+        val chars = book.getJSONArray("chars")
+        assertEquals(1, chars.length())
+        assertEquals("Capitana Orion", chars.getJSONObject(0).getString("n"))
     }
 }

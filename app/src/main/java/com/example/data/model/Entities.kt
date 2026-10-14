@@ -35,6 +35,18 @@ data class Chapter(
     val lastSynced: String
 )
 
+@Entity(tableName = "chapter_versions")
+data class ChapterVersion(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val chapterId: String,
+    val novelId: String,
+    val timestamp: Long,
+    val timeFormatted: String,
+    val wordCount: Int,
+    val content: String,
+    val note: String
+)
+
 @Entity(tableName = "margin_notes")
 data class MarginNote(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,

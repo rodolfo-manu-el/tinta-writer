@@ -3,6 +3,7 @@ package com.example.data
 import android.content.Context
 import android.net.Uri
 import com.example.data.model.Chapter
+import com.example.data.model.ChapterVersion
 import com.example.data.model.CharacterEntity
 import com.example.data.model.CodexEntry
 import com.example.data.model.MarginNote
@@ -30,6 +31,13 @@ class TintaRepository(private val database: AppDatabase) {
         database.chapterDao().getChaptersByNovel(novelId)
 
     fun getChapterById(id: String): Flow<Chapter?> = database.chapterDao().getChapterById(id)
+
+    fun getVersionsForChapter(chapterId: String): Flow<List<ChapterVersion>> =
+        database.chapterVersionDao().getVersionsForChapter(chapterId)
+
+    suspend fun saveChapterVersion(version: ChapterVersion) {
+        database.chapterVersionDao().insertVersion(version)
+    }
 
     fun getNotesForChapter(chapterId: String): Flow<List<MarginNote>> =
         database.marginNoteDao().getNotesForChapter(chapterId)
@@ -85,6 +93,7 @@ class TintaRepository(private val database: AppDatabase) {
     suspend fun clearAllData() {
         database.novelDao().deleteAllNovels()
         database.chapterDao().deleteAllChapters()
+        database.chapterVersionDao().deleteAllVersions()
         database.marginNoteDao().deleteAllNotes()
         database.characterDao().deleteAllCharacters()
         database.relationshipDao().deleteAllRelationships()

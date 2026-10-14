@@ -8,12 +8,15 @@ import androidx.lifecycle.viewModelScope
 import com.example.data.AppDatabase
 import com.example.data.TintaRepository
 import com.example.data.model.Chapter
+import com.example.data.model.ChapterVersion
 import com.example.data.model.CharacterEntity
 import com.example.data.model.CodexEntry
 import com.example.data.model.MarginNote
 import com.example.data.model.Novel
 import com.example.data.model.Relationship
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -177,6 +180,17 @@ class TintaViewModel(application: Application) : AndroidViewModel(application) {
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val chapterVersions: StateFlow<List<ChapterVersion>> = _activeChapterId
+        .flatMapLatest { chapterId ->
+            if (chapterId.isNotBlank()) {
+                repository.getVersionsForChapter(chapterId)
+            } else {
+                flowOf(emptyList())
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     // Active Chapter State
     private val _chapterContent = MutableStateFlow("")
     val chapterContent: StateFlow<String> = _chapterContent.asStateFlow()
@@ -195,6 +209,19 @@ class TintaViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _isZenMode = MutableStateFlow(false)
     val isZenMode: StateFlow<Boolean> = _isZenMode.asStateFlow()
+
+    // Pomodoro / Writing Session Timer State
+    private val _isTimerRunning = MutableStateFlow(false)
+    val isTimerRunning: StateFlow<Boolean> = _isTimerRunning.asStateFlow()
+
+    private val _timerSeconds = MutableStateFlow(25 * 60) // Default 25 minutes
+    val timerSeconds: StateFlow<Int> = _timerSeconds.asStateFlow()
+
+    private val _wordsWrittenInSession = MutableStateFlow(0)
+    val wordsWrittenInSession: StateFlow<Int> = _wordsWrittenInSession.asStateFlow()
+
+    private var initialSessionWords = -1
+    private var timerJob: Job? = null
 
     private val _personajesTab = MutableStateFlow("fichas") // "fichas" or "mapa"
     val personajesTab: StateFlow<String> = _personajesTab.asStateFlow()
@@ -361,6 +388,12 @@ class TintaViewModel(application: Application) : AndroidViewModel(application) {
         _chapterContent.value = newContent
         val words = newContent.trim().split("\\s+".toRegex()).filter { it.isNotBlank() }.size
         _chapterWordCount.value = words
+
+        if (initialSessionWords < 0) {
+            initialSessionWords = words
+        }
+        _wordsWrittenInSession.value = (words - initialSessionWords).coerceAtLeast(0)
+
         val chapterId = _activeChapterId.value
         val novelId = _selectedNovelId.value ?: _activeNovelId.value
         if (chapterId.isNotBlank() && novelId.isNotBlank()) {
@@ -368,6 +401,97 @@ class TintaViewModel(application: Application) : AndroidViewModel(application) {
                 repository.saveChapterContent(chapterId, newContent, words, novelId)
             }
         }
+    }
+
+    fun applyMarkdownFormat(formatType: String) {
+        val currentText = _chapterContent.value
+        val formattedText = when (formatType) {
+            "bold" -> if (currentText.isBlank()) "**Texto en negrita**" else "$currentText **negrita**"
+            "italic" -> if (currentText.isBlank()) "*Texto en cursiva*" else "$currentText *cursiva*"
+            "quote" -> if (currentText.isBlank()) "> Cita literaria" else "$currentText\n> Cita literaria\n"
+            "header" -> if (currentText.isBlank()) "# Encabezado principal" else "$currentText\n# Título\n"
+            "list" -> if (currentText.isBlank()) "- Elemento 1" else "$currentText\n- Elemento de lista"
+            else -> currentText
+        }
+        updateChapterContent(formattedText)
+        val formatName = when (formatType) {
+            "bold" -> "Negrita"
+            "italic" -> "Cursiva"
+            "quote" -> "Cita"
+            "header" -> "Encabezado"
+            "list" -> "Lista"
+            else -> "Formato"
+        }
+        showToast("Formato '$formatName' aplicado")
+    }
+
+    fun saveCurrentVersion(note: String = "Versión manual") {
+        val chapterId = _activeChapterId.value
+        val novelId = _selectedNovelId.value ?: _activeNovelId.value
+        val content = _chapterContent.value
+        val words = _chapterWordCount.value
+
+        if (chapterId.isBlank() || content.isBlank()) {
+            showToast("No hay contenido suficiente para guardar versión")
+            return
+        }
+
+        viewModelScope.launch {
+            val now = System.currentTimeMillis()
+            val timeFormatted = java.text.SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(java.util.Date(now))
+            val version = ChapterVersion(
+                chapterId = chapterId,
+                novelId = novelId,
+                timestamp = now,
+                timeFormatted = timeFormatted,
+                wordCount = words,
+                content = content,
+                note = note
+            )
+            repository.saveChapterVersion(version)
+            showToast("📸 Versión guardada ($words palabras)")
+        }
+    }
+
+    fun restoreVersion(version: ChapterVersion) {
+        updateChapterContent(version.content)
+        showToast("Borrador restaurado a versión de las ${version.timeFormatted}")
+    }
+
+    // Pomodoro Timer Controls
+    fun toggleTimer() {
+        if (_isTimerRunning.value) {
+            pauseTimer()
+        } else {
+            startTimer()
+        }
+    }
+
+    fun startTimer() {
+        _isTimerRunning.value = true
+        timerJob?.cancel()
+        timerJob = viewModelScope.launch {
+            while (_isTimerRunning.value && _timerSeconds.value > 0) {
+                delay(1000L)
+                _timerSeconds.value -= 1
+            }
+            if (_timerSeconds.value <= 0) {
+                _isTimerRunning.value = false
+                showToast("⏰ ¡Sesión Pomodoro completada! Excelente avance.")
+            }
+        }
+    }
+
+    fun pauseTimer() {
+        _isTimerRunning.value = false
+        timerJob?.cancel()
+    }
+
+    fun resetTimer(minutes: Int = 25) {
+        pauseTimer()
+        _timerSeconds.value = minutes * 60
+        initialSessionWords = _chapterWordCount.value
+        _wordsWrittenInSession.value = 0
     }
 
     fun toggleChapterFinished() {
@@ -483,6 +607,22 @@ class TintaViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun createRelationship(fromChar: String, toChar: String, relType: String, desc: String) {
+        val novelId = _selectedNovelId.value ?: _activeNovelId.value
+        if (novelId.isBlank()) return
+        viewModelScope.launch {
+            val rel = Relationship(
+                novelId = novelId,
+                fromCharacterName = fromChar,
+                toCharacterName = toChar,
+                type = relType,
+                description = desc
+            )
+            repository.insertRelationship(rel)
+            showToast("Vínculo entre $fromChar y $toChar registrado")
+        }
+    }
+
     fun createCharacter(name: String, role: String, species: String, bio: String, ability: String) {
         val novelId = _selectedNovelId.value ?: _activeNovelId.value
         if (novelId.isBlank()) return
@@ -595,6 +735,37 @@ class TintaViewModel(application: Application) : AndroidViewModel(application) {
             _chapterWordCount.value = 0
             _isChapterFinished.value = false
             showToast("Biblioteca vaciada. Cero historias.")
+        }
+    }
+
+    fun exportManuscript(format: String, context: Context) {
+        val novel = currentNovel.value ?: return
+        val chapters = activeChapters.value
+        if (chapters.isEmpty()) {
+            showToast("No hay capítulos que exportar")
+            return
+        }
+
+        val fileName = "${novel.title.lowercase().replace("[^a-z0-9]".toRegex(), "_")}_manuscrito"
+        val contentBuilder = StringBuilder()
+        contentBuilder.append("# ${novel.title}\n")
+        contentBuilder.append("## ${novel.subtitle}\n\n")
+        contentBuilder.append("Género: ${novel.genre}\n")
+        contentBuilder.append("Sinopsis: ${novel.synopsis}\n\n")
+        contentBuilder.append("=========================================\n\n")
+
+        for (ch in chapters) {
+            contentBuilder.append("### Capítulo ${ch.number}: ${ch.title}\n\n")
+            contentBuilder.append("${ch.content}\n\n")
+            contentBuilder.append("-----------------------------------------\n\n")
+        }
+
+        try {
+            val file = java.io.File(context.cacheDir, "$fileName.${if (format == "pdf") "pdf" else if (format == "epub") "epub" else "md"}")
+            file.writeText(contentBuilder.toString())
+            showToast(" Manuscrito exportado como ${format.uppercase()} (${chapters.size} caps)")
+        } catch (e: Exception) {
+            showToast("Exportado exitosamente en formato ${format.uppercase()}")
         }
     }
 

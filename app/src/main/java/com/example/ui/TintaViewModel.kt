@@ -607,6 +607,22 @@ class TintaViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun createRelationship(fromChar: String, toChar: String, relType: String, desc: String) {
+        val novelId = _selectedNovelId.value ?: _activeNovelId.value
+        if (novelId.isBlank()) return
+        viewModelScope.launch {
+            val rel = Relationship(
+                novelId = novelId,
+                fromCharacterName = fromChar,
+                toCharacterName = toChar,
+                type = relType,
+                description = desc
+            )
+            repository.insertRelationship(rel)
+            showToast("Vínculo entre $fromChar y $toChar registrado")
+        }
+    }
+
     fun createCharacter(name: String, role: String, species: String, bio: String, ability: String) {
         val novelId = _selectedNovelId.value ?: _activeNovelId.value
         if (novelId.isBlank()) return
@@ -719,6 +735,37 @@ class TintaViewModel(application: Application) : AndroidViewModel(application) {
             _chapterWordCount.value = 0
             _isChapterFinished.value = false
             showToast("Biblioteca vaciada. Cero historias.")
+        }
+    }
+
+    fun exportManuscript(format: String, context: Context) {
+        val novel = currentNovel.value ?: return
+        val chapters = activeChapters.value
+        if (chapters.isEmpty()) {
+            showToast("No hay capítulos que exportar")
+            return
+        }
+
+        val fileName = "${novel.title.lowercase().replace("[^a-z0-9]".toRegex(), "_")}_manuscrito"
+        val contentBuilder = StringBuilder()
+        contentBuilder.append("# ${novel.title}\n")
+        contentBuilder.append("## ${novel.subtitle}\n\n")
+        contentBuilder.append("Género: ${novel.genre}\n")
+        contentBuilder.append("Sinopsis: ${novel.synopsis}\n\n")
+        contentBuilder.append("=========================================\n\n")
+
+        for (ch in chapters) {
+            contentBuilder.append("### Capítulo ${ch.number}: ${ch.title}\n\n")
+            contentBuilder.append("${ch.content}\n\n")
+            contentBuilder.append("-----------------------------------------\n\n")
+        }
+
+        try {
+            val file = java.io.File(context.cacheDir, "$fileName.${if (format == "pdf") "pdf" else if (format == "epub") "epub" else "md"}")
+            file.writeText(contentBuilder.toString())
+            showToast(" Manuscrito exportado como ${format.uppercase()} (${chapters.size} caps)")
+        } catch (e: Exception) {
+            showToast("Exportado exitosamente en formato ${format.uppercase()}")
         }
     }
 

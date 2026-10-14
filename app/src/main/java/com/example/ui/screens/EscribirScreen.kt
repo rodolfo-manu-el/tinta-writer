@@ -29,11 +29,19 @@ import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Draw
+import androidx.compose.material.icons.filled.FormatListBulleted
 import androidx.compose.material.icons.filled.FormatQuote
 import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -43,8 +51,10 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -64,6 +74,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.data.model.ChapterVersion
 import com.example.data.model.MarginNote
 import com.example.ui.TintaTab
 import com.example.ui.TintaViewModel
@@ -86,8 +97,14 @@ fun EscribirScreen(
     val selectedFont by viewModel.selectedFont.collectAsStateWithLifecycle()
     val isZenMode by viewModel.isZenMode.collectAsStateWithLifecycle()
     val marginNotes by viewModel.activeNotes.collectAsStateWithLifecycle()
+    val chapterVersions by viewModel.chapterVersions.collectAsStateWithLifecycle()
+
+    val isTimerRunning by viewModel.isTimerRunning.collectAsStateWithLifecycle()
+    val timerSeconds by viewModel.timerSeconds.collectAsStateWithLifecycle()
+    val wordsWrittenInSession by viewModel.wordsWrittenInSession.collectAsStateWithLifecycle()
 
     var isChapterDropdownExpanded by remember { mutableStateOf(false) }
+    var showVersionsDialog by remember { mutableStateOf(false) }
 
     val readingTimeMin = (wordCount / 250).coerceAtLeast(1)
     val currentChapter = activeChapters.find { it.id == activeChapterId }
@@ -498,23 +515,26 @@ fun EscribirScreen(
                         }
                     }
 
-                    // Row 2: Formatting shortcuts & Live word counter
+                    // Row 2: Formatting shortcuts & History/Version control
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            FormatButton(text = "B", isBold = true, onClick = { viewModel.showToast("Negrita aplicada") })
-                            FormatButton(text = "I", isItalic = true, onClick = { viewModel.showToast("Cursiva aplicada") })
-                            FormatIconButton(icon = Icons.Default.FormatQuote, onClick = { viewModel.showToast("Cita en bloque insertada") })
+                            FormatButton(text = "B", isBold = true, onClick = { viewModel.applyMarkdownFormat("bold") })
+                            FormatButton(text = "I", isItalic = true, onClick = { viewModel.applyMarkdownFormat("italic") })
+                            FormatButton(text = "H", isBold = true, onClick = { viewModel.applyMarkdownFormat("header") })
+                            FormatIconButton(icon = Icons.Default.FormatQuote, onClick = { viewModel.applyMarkdownFormat("quote") })
+                            FormatIconButton(icon = Icons.Default.FormatListBulleted, onClick = { viewModel.applyMarkdownFormat("list") })
+
                             Surface(
                                 shape = RoundedCornerShape(8.dp),
                                 color = MaterialTheme.colorScheme.primaryContainer,
                                 modifier = Modifier
                                     .size(32.dp)
                                     .clip(RoundedCornerShape(8.dp))
-                                    .clickable { viewModel.showToast("Chispa creativa: sugerencia de metáfora aplicada") },
+                                    .clickable { viewModel.showToast("Chispa creativa: metáfora o sugerencia de ritmo aplicada") },
                                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
@@ -527,34 +547,144 @@ fun EscribirScreen(
                             }
                         }
 
-                        // Live Counter
-                        Surface(
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.surfaceContainerHighest
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            // Save version snapshot button
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                modifier = Modifier
+                                    .height(32.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { viewModel.saveCurrentVersion("Snapshot manual") }
+                                    .testTag("save_version_button")
                             ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(6.dp)
-                                        .clip(CircleShape)
-                                        .background(MaterialTheme.colorScheme.primary)
-                                )
-                                Text(
-                                    text = "${String.format("%,d", wordCount).replace(',', '.')} palabras",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = "· $readingTimeMin min",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                    modifier = Modifier.padding(horizontal = 8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Save,
+                                        contentDescription = "Guardar versión",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Text(
+                                        text = "Capturar",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
+
+                            // View history button
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                modifier = Modifier
+                                    .height(32.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { showVersionsDialog = true }
+                                    .testTag("history_versions_button")
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                    modifier = Modifier.padding(horizontal = 8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.History,
+                                        contentDescription = "Historial",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Text(
+                                        text = "Versiones (${chapterVersions.size})",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Pomodoro Writing Timer & Telemetry Card
+            Card(
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
+                modifier = Modifier.fillMaxWidth().testTag("pomodoro_timer_card")
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Timer,
+                            contentDescription = null,
+                            tint = if (isTimerRunning) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        val minutes = timerSeconds / 60
+                        val seconds = timerSeconds % 60
+                        val timerFormatted = String.format("%02d:%02d", minutes, seconds)
+                        Column {
+                            Text(
+                                text = "Sesión Pomodoro: $timerFormatted",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "+$wordsWrittenInSession palabras escritas en la sesión",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        IconButton(
+                            onClick = { viewModel.toggleTimer() },
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .background(if (isTimerRunning) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer)
+                                .testTag("toggle_pomodoro_button")
+                        ) {
+                            Icon(
+                                imageVector = if (isTimerRunning) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                contentDescription = if (isTimerRunning) "Pausar" else "Iniciar",
+                                tint = if (isTimerRunning) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
+                        IconButton(
+                            onClick = { viewModel.resetTimer() },
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                                .testTag("reset_pomodoro_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = "Reiniciar Pomodoro",
+                                tint = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(16.dp)
+                            )
                         }
                     }
                 }
@@ -658,8 +788,106 @@ fun EscribirScreen(
             onDeleteNote = { noteId -> viewModel.deleteMarginNote(noteId) }
         )
 
+        // Version History Dialog
+        if (showVersionsDialog) {
+            VersionHistoryDialog(
+                versions = chapterVersions,
+                onDismiss = { showVersionsDialog = false },
+                onRestore = { version ->
+                    viewModel.restoreVersion(version)
+                    showVersionsDialog = false
+                }
+            )
+        }
+
         Spacer(modifier = Modifier.height(100.dp))
     }
+}
+
+@Composable
+private fun VersionHistoryDialog(
+    versions: List<ChapterVersion>,
+    onDismiss: () -> Unit,
+    onRestore: (ChapterVersion) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(imageVector = Icons.Default.History, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Text(text = "Historial de Versiones")
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(300.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                if (versions.isEmpty()) {
+                    Text(
+                        text = "Aún no hay versiones o borradores guardados para este capítulo. Presiona 'Capturar' en la barra para guardar una versión.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    versions.forEach { version ->
+                        Card(
+                            shape = RoundedCornerShape(10.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "⏱️ ${version.timeFormatted}",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    Text(
+                                        text = "${version.wordCount} palabras",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Text(
+                                    text = version.content.take(100) + if (version.content.length > 100) "..." else "",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 2
+                                )
+                                OutlinedButton(
+                                    onClick = { onRestore(version) },
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.align(Alignment.End)
+                                ) {
+                                    Text("Restaurar este borrador")
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cerrar")
+            }
+        }
+    )
 }
 
 @Composable

@@ -7,6 +7,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
 import com.example.data.model.Chapter
+import com.example.data.model.ChapterVersion
 import com.example.data.model.CharacterEntity
 import com.example.data.model.CodexEntry
 import com.example.data.model.MarginNote
@@ -66,6 +67,21 @@ interface ChapterDao {
 
     @Query("DELETE FROM chapters")
     suspend fun deleteAllChapters()
+}
+
+@Dao
+interface ChapterVersionDao {
+    @Query("SELECT * FROM chapter_versions WHERE chapterId = :chapterId ORDER BY timestamp DESC")
+    fun getVersionsForChapter(chapterId: String): Flow<List<ChapterVersion>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertVersion(version: ChapterVersion)
+
+    @Query("DELETE FROM chapter_versions WHERE chapterId = :chapterId")
+    suspend fun deleteVersionsForChapter(chapterId: String)
+
+    @Query("DELETE FROM chapter_versions")
+    suspend fun deleteAllVersions()
 }
 
 @Dao

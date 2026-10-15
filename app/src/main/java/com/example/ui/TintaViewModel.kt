@@ -403,17 +403,37 @@ class TintaViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun applyMarkdownFormat(formatType: String) {
+    fun applyMarkdownFormat(formatType: String, selectionStart: Int = -1, selectionEnd: Int = -1) {
         val currentText = _chapterContent.value
-        val formattedText = when (formatType) {
-            "bold" -> if (currentText.isBlank()) "**Texto en negrita**" else "$currentText **negrita**"
-            "italic" -> if (currentText.isBlank()) "*Texto en cursiva*" else "$currentText *cursiva*"
-            "quote" -> if (currentText.isBlank()) "> Cita literaria" else "$currentText\n> Cita literaria\n"
-            "header" -> if (currentText.isBlank()) "# Encabezado principal" else "$currentText\n# Título\n"
-            "list" -> if (currentText.isBlank()) "- Elemento 1" else "$currentText\n- Elemento de lista"
-            else -> currentText
+        val start = if (selectionStart >= 0) selectionStart.coerceIn(0, currentText.length) else currentText.length
+        val end = if (selectionEnd >= 0) selectionEnd.coerceIn(0, currentText.length) else currentText.length
+
+        val selectedText = if (start < end) currentText.substring(start, end) else ""
+
+        val (prefix, suffix) = when (formatType) {
+            "bold" -> Pair("**", "**")
+            "italic" -> Pair("*", "*")
+            "quote" -> Pair("\n> ", "\n")
+            "header" -> Pair("\n# ", "\n")
+            "list" -> Pair("\n- ", "\n")
+            else -> Pair("", "")
         }
-        updateChapterContent(formattedText)
+
+        val newText = if (selectedText.isNotBlank()) {
+            currentText.substring(0, start) + prefix + selectedText + suffix + currentText.substring(end)
+        } else {
+            val defaultInsert = when (formatType) {
+                "bold" -> "texto en negrita"
+                "italic" -> "texto en cursiva"
+                "quote" -> "Cita literaria"
+                "header" -> "Encabezado principal"
+                "list" -> "Elemento de lista"
+                else -> ""
+            }
+            currentText.substring(0, start) + prefix + defaultInsert + suffix + currentText.substring(start)
+        }
+
+        updateChapterContent(newText)
         val formatName = when (formatType) {
             "bold" -> "Negrita"
             "italic" -> "Cursiva"
@@ -623,6 +643,13 @@ class TintaViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun updateCharacter(character: CharacterEntity) {
+        viewModelScope.launch {
+            repository.insertCharacter(character)
+            showToast("Personaje '${character.name}' actualizado")
+        }
+    }
+
     fun createCharacter(name: String, role: String, species: String, bio: String, ability: String) {
         val novelId = _selectedNovelId.value ?: _activeNovelId.value
         if (novelId.isBlank()) return
@@ -633,7 +660,7 @@ class TintaViewModel(application: Application) : AndroidViewModel(application) {
                 novelId = novelId,
                 name = name,
                 roleTag = role,
-                epithet = "Ficha de personaje",
+                epithet = role,
                 bio = bio,
                 age = "Indefinida",
                 species = species,
@@ -761,9 +788,23 @@ class TintaViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         try {
-            val file = java.io.File(context.cacheDir, "$fileName.${if (format == "pdf") "pdf" else if (format == "epub") "epub" else "md"}")
+            val extension = if (format == "pdf") "pdf" else if (format == "epub") "epub" else "md"
+            val file = java.io.File(context.cacheDir, "$fileName.$extension")
             file.writeText(contentBuilder.toString())
-            showToast(" Manuscrito exportado como ${format.uppercase()} (${chapters.size} caps)")
+
+            val uri = androidx.core.content.FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                file
+            )
+
+            val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            context.startActivity(android.content.Intent.createChooser(shareIntent, "Guardar o compartir manuscrito ($format)"))
+            showToast(" Exportando manuscrito en ${format.uppercase()}")
         } catch (e: Exception) {
             showToast("Exportado exitosamente en formato ${format.uppercase()}")
         }

@@ -1,7 +1,10 @@
 package com.example.ui.screens
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -64,11 +67,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -102,6 +109,10 @@ fun EscribirScreen(
     val isTimerRunning by viewModel.isTimerRunning.collectAsStateWithLifecycle()
     val timerSeconds by viewModel.timerSeconds.collectAsStateWithLifecycle()
     val wordsWrittenInSession by viewModel.wordsWrittenInSession.collectAsStateWithLifecycle()
+
+    var tfv by remember(chapterContent) {
+        mutableStateOf(TextFieldValue(text = chapterContent, selection = TextRange(chapterContent.length)))
+    }
 
     var isChapterDropdownExpanded by remember { mutableStateOf(false) }
     var showVersionsDialog by remember { mutableStateOf(false) }
@@ -522,11 +533,21 @@ fun EscribirScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            FormatButton(text = "B", isBold = true, onClick = { viewModel.applyMarkdownFormat("bold") })
-                            FormatButton(text = "I", isItalic = true, onClick = { viewModel.applyMarkdownFormat("italic") })
-                            FormatButton(text = "H", isBold = true, onClick = { viewModel.applyMarkdownFormat("header") })
-                            FormatIconButton(icon = Icons.Default.FormatQuote, onClick = { viewModel.applyMarkdownFormat("quote") })
-                            FormatIconButton(icon = Icons.Default.FormatListBulleted, onClick = { viewModel.applyMarkdownFormat("list") })
+                            FormatButton(text = "B", isBold = true, onClick = {
+                                viewModel.applyMarkdownFormat("bold", tfv.selection.start, tfv.selection.end)
+                            })
+                            FormatButton(text = "I", isItalic = true, onClick = {
+                                viewModel.applyMarkdownFormat("italic", tfv.selection.start, tfv.selection.end)
+                            })
+                            FormatButton(text = "H", isBold = true, onClick = {
+                                viewModel.applyMarkdownFormat("header", tfv.selection.start, tfv.selection.end)
+                            })
+                            FormatIconButton(icon = Icons.Default.FormatQuote, onClick = {
+                                viewModel.applyMarkdownFormat("quote", tfv.selection.start, tfv.selection.end)
+                            })
+                            FormatIconButton(icon = Icons.Default.FormatListBulleted, onClick = {
+                                viewModel.applyMarkdownFormat("list", tfv.selection.start, tfv.selection.end)
+                            })
 
                             Surface(
                                 shape = RoundedCornerShape(8.dp),
@@ -692,90 +713,143 @@ fun EscribirScreen(
 
             // Manuscript Canvas (Editorial Live Writing Canvas)
             val canvasBg = when (paperTexture) {
-                "parchment" -> MaterialTheme.colorScheme.surfaceContainer
-                "lined" -> MaterialTheme.colorScheme.surfaceContainerHigh
-                "grid" -> MaterialTheme.colorScheme.surfaceContainerLowest
+                "parchment" -> Color(0xFFFBF0D9)
+                "lined" -> Color(0xFFF1F5F9)
+                "grid" -> Color(0xFFE2E8F0)
                 else -> MaterialTheme.colorScheme.surfaceContainerLow
+            }
+
+            val lineOverlayColor = when (paperTexture) {
+                "parchment" -> Color(0xFFD9C3A3)
+                "lined" -> Color(0xFF94A3B8)
+                "grid" -> Color(0xFFCBD5E1)
+                else -> Color.Transparent
+            }
+
+            val textOnCanvasColor = when (paperTexture) {
+                "parchment" -> Color(0xFF2C1D11)
+                "lined" -> Color(0xFF0F172A)
+                "grid" -> Color(0xFF0F172A)
+                else -> MaterialTheme.colorScheme.onSurface
             }
 
             Surface(
                 shape = RoundedCornerShape(16.dp),
                 color = canvasBg,
                 tonalElevation = 2.dp,
-                border = if (isZenMode) BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)) else null,
+                border = if (isZenMode) BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)) else BorderStroke(1.dp, lineOverlayColor.copy(alpha = 0.5f)),
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("manuscript_canvas")
             ) {
-                Column(
-                    modifier = Modifier.padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
-                ) {
-                    // Header with icon & title
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "✍️",
-                            style = MaterialTheme.typography.headlineSmall
-                        )
-                        Text(
-                            text = currentChapter?.title?.uppercase() ?: "BORRADOR MAESTRO",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            letterSpacing = 1.4.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    // Pattern overlay for Lined / Grid
+                    if (paperTexture == "lined" || paperTexture == "grid") {
+                        Canvas(modifier = Modifier.matchParentSize()) {
+                            val strokeWidth = 1f
+                            val step = 28.dp.toPx()
+                            if (paperTexture == "lined" || paperTexture == "grid") {
+                                var y = step
+                                while (y < size.height) {
+                                    drawLine(
+                                        color = lineOverlayColor.copy(alpha = 0.35f),
+                                        start = Offset(0f, y),
+                                        end = Offset(size.width, y),
+                                        strokeWidth = strokeWidth
+                                    )
+                                    y += step
+                                }
+                            }
+                            if (paperTexture == "grid") {
+                                var x = step
+                                while (x < size.width) {
+                                    drawLine(
+                                        color = lineOverlayColor.copy(alpha = 0.35f),
+                                        start = Offset(x, 0f),
+                                        end = Offset(x, size.height),
+                                        strokeWidth = strokeWidth
+                                    )
+                                    x += step
+                                }
+                            }
+                        }
                     }
 
-                    // Interactive Text Editor (Persists directly to Chapter entity in Room)
-                    val editorFontFamily = if (selectedFont == "Newsreader") NewsreaderFontFamily else PlusJakartaSansFontFamily
-                    BasicTextField(
-                        value = chapterContent,
-                        onValueChange = { viewModel.updateChapterContent(it) },
-                        textStyle = TextStyle(
-                            fontFamily = editorFontFamily,
-                            fontSize = 17.sp,
-                            lineHeight = 28.sp,
-                            color = MaterialTheme.colorScheme.onSurface
-                        ),
-                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(340.dp)
-                            .testTag("editable_manuscript_text")
-                    )
-
-                    // Footer Status
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                    Column(
+                        modifier = Modifier.padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
+                        // Header with icon & title
                         Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Draw,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(14.dp)
+                            Text(
+                                text = "✍️",
+                                style = MaterialTheme.typography.headlineSmall
                             )
                             Text(
-                                text = "Tinta activa",
+                                text = currentChapter?.title?.uppercase() ?: "BORRADOR MAESTRO",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                letterSpacing = 1.4.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+
+                        // Interactive Text Editor (Persists directly to Chapter entity in Room)
+                        val editorFontFamily = if (selectedFont == "Newsreader") NewsreaderFontFamily else PlusJakartaSansFontFamily
+                        BasicTextField(
+                            value = tfv,
+                            onValueChange = { newTfv ->
+                                tfv = newTfv
+                                if (newTfv.text != chapterContent) {
+                                    viewModel.updateChapterContent(newTfv.text)
+                                }
+                            },
+                            textStyle = TextStyle(
+                                fontFamily = editorFontFamily,
+                                fontSize = 17.sp,
+                                lineHeight = 28.sp,
+                                color = textOnCanvasColor
+                            ),
+                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(340.dp)
+                                .testTag("editable_manuscript_text")
+                        )
+
+                        // Footer Status
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Draw,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Text(
+                                    text = "Tinta activa",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Text(
+                                text = "${chapterContent.length} caracteres",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        Text(
-                            text = "${chapterContent.length} caracteres",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
                     }
                 }
             }

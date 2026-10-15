@@ -330,9 +330,169 @@ fun PersonajesScreen(
                 }
             )
         } else {
+            var editingCharacter by remember { mutableStateOf<CharacterEntity?>(null) }
+            var viewingCharacter by remember { mutableStateOf<CharacterEntity?>(null) }
+
             // Real characters list
             characters.forEach { char ->
-                CardGenericCharacter(character = char)
+                CardGenericCharacter(
+                    character = char,
+                    onClick = { viewingCharacter = char },
+                    onEdit = { editingCharacter = char }
+                )
+            }
+
+            // Edit Character Dialog
+            editingCharacter?.let { char ->
+                var name by remember { mutableStateOf(char.name) }
+                var roleTag by remember { mutableStateOf(char.roleTag) }
+                var bio by remember { mutableStateOf(char.bio) }
+                var age by remember { mutableStateOf(char.age) }
+                var species by remember { mutableStateOf(char.species) }
+                var ability by remember { mutableStateOf(char.specialAbility) }
+
+                AlertDialog(
+                    onDismissRequest = { editingCharacter = null },
+                    title = { Text("Editar Personaje: ${char.name}") },
+                    text = {
+                        Column(
+                            modifier = Modifier.verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = name,
+                                onValueChange = { name = it },
+                                label = { Text("Nombre") },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            OutlinedTextField(
+                                value = roleTag,
+                                onValueChange = { roleTag = it },
+                                label = { Text("Rol / Arquetipo") },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            OutlinedTextField(
+                                value = age,
+                                onValueChange = { age = it },
+                                label = { Text("Edad") },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            OutlinedTextField(
+                                value = species,
+                                onValueChange = { species = it },
+                                label = { Text("Especie") },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            OutlinedTextField(
+                                value = ability,
+                                onValueChange = { ability = it },
+                                label = { Text("Habilidad Especial") },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            OutlinedTextField(
+                                value = bio,
+                                onValueChange = { bio = it },
+                                label = { Text("Biografía / Notas") },
+                                minLines = 3,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                val updated = char.copy(
+                                    name = name,
+                                    roleTag = roleTag,
+                                    epithet = roleTag,
+                                    bio = bio,
+                                    age = age,
+                                    species = species,
+                                    specialAbility = ability
+                                )
+                                viewModel.updateCharacter(updated)
+                                editingCharacter = null
+                            }
+                        ) {
+                            Text("Guardar Cambios")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { editingCharacter = null }) {
+                            Text("Cancelar")
+                        }
+                    }
+                )
+            }
+
+            // View Detail Character Dialog
+            viewingCharacter?.let { char ->
+                AlertDialog(
+                    onDismissRequest = { viewingCharacter = null },
+                    title = {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(imageVector = Icons.Default.Group, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            Text(char.name)
+                        }
+                    },
+                    text = {
+                        Column(
+                            modifier = Modifier.verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    text = "ROL: ${char.roleTag.uppercase()}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                )
+                            }
+
+                            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                                Column {
+                                    Text("EDAD", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text(char.age, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                                }
+                                Column {
+                                    Text("ESPECIE", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text(char.species, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                                }
+                            }
+
+                            Column {
+                                Text("HABILIDAD / DESTREZA", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(char.specialAbility, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.secondary)
+                            }
+
+                            Column {
+                                Text("BIOGRAFÍA / HISTORIAL", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(char.bio, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        Button(onClick = {
+                            editingCharacter = char
+                            viewingCharacter = null
+                        }) {
+                            Text("Editar Ficha")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { viewingCharacter = null }) {
+                            Text("Cerrar")
+                        }
+                    }
+                )
             }
 
             // Fast Action Drawer Bar
@@ -373,11 +533,17 @@ fun PersonajesScreen(
 }
 
 @Composable
-private fun CardGenericCharacter(character: CharacterEntity) {
+private fun CardGenericCharacter(
+    character: CharacterEntity,
+    onClick: () -> Unit,
+    onEdit: () -> Unit
+) {
     Card(
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
     ) {
         Row(
             modifier = Modifier.padding(14.dp),
@@ -402,11 +568,8 @@ private fun CardGenericCharacter(character: CharacterEntity) {
                 Text(text = character.epithet, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary)
                 Text(text = character.bio, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            Surface(
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.surfaceContainerHighest
-            ) {
-                Text(text = character.roleTag, style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp), color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+            IconButton(onClick = onEdit) {
+                Icon(imageVector = Icons.Default.EditNote, contentDescription = "Editar", tint = MaterialTheme.colorScheme.primary)
             }
         }
     }

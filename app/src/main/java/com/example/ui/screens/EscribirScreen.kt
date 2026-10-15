@@ -9,6 +9,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,19 +32,17 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Draw
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FormatListBulleted
 import androidx.compose.material.icons.filled.FormatQuote
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PushPin
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -60,6 +59,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -67,7 +67,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -86,17 +85,20 @@ import com.example.data.model.ChapterVersion
 import com.example.data.model.MarginNote
 import com.example.ui.TintaTab
 import com.example.ui.TintaViewModel
+import com.example.ui.components.MarkdownWysiwygVisualTransformation
 import com.example.ui.theme.NewsreaderFontFamily
 import com.example.ui.theme.PlusJakartaSansFontFamily
 
-// Custom Tinta & Trama Editorial Colors matching screen.png / code.html
-private val TintaCream = Color(0xFFFBF0D9)
-private val TintaPaperLined = Color(0xFFF1F5F9)
-private val TintaPaperGrid = Color(0xFFE2E8F0)
+// Custom Colors matching Tinta Theme
+private val TintaCreamLight = Color(0xFFFBF0D9)
+private val TintaCreamDark = Color(0xFF2C2621)
+private val TintaPaperLinedLight = Color(0xFFF1F5F9)
+private val TintaPaperLinedDark = Color(0xFF1E293B)
+private val TintaPaperGridLight = Color(0xFFE2E8F0)
+private val TintaPaperGridDark = Color(0xFF334155)
+
 private val TintaAccent = Color(0xFFE06738)
 private val TintaAccentDark = Color(0xFFC25327)
-private val TintaCharcoal = Color(0xFF28221E)
-private val TintaMuted = Color(0xFF8D7B68)
 
 @Composable
 fun EscribirScreen(
@@ -108,23 +110,24 @@ fun EscribirScreen(
     val activeChapters by viewModel.activeChapters.collectAsStateWithLifecycle()
     val activeChapterId by viewModel.activeChapterId.collectAsStateWithLifecycle()
     val chapterContent by viewModel.chapterContent.collectAsStateWithLifecycle()
-    val wordCount by viewModel.chapterWordCount.collectAsStateWithLifecycle()
     val isFinished by viewModel.isChapterFinished.collectAsStateWithLifecycle()
     val paperTexture by viewModel.paperTexture.collectAsStateWithLifecycle()
     val selectedFont by viewModel.selectedFont.collectAsStateWithLifecycle()
-    val isZenMode by viewModel.isZenMode.collectAsStateWithLifecycle()
     val marginNotes by viewModel.activeNotes.collectAsStateWithLifecycle()
     val chapterVersions by viewModel.chapterVersions.collectAsStateWithLifecycle()
 
     val isTimerRunning by viewModel.isTimerRunning.collectAsStateWithLifecycle()
     val timerSeconds by viewModel.timerSeconds.collectAsStateWithLifecycle()
     val wordsWrittenInSession by viewModel.wordsWrittenInSession.collectAsStateWithLifecycle()
+    val isDarkThemeState by viewModel.isDarkTheme.collectAsStateWithLifecycle()
+
+    val isDark = isDarkThemeState || isSystemInDarkTheme()
 
     var tfv by remember(activeChapterId) {
         mutableStateOf(TextFieldValue(text = chapterContent, selection = TextRange(chapterContent.length)))
     }
 
-    androidx.compose.runtime.LaunchedEffect(chapterContent, activeChapterId) {
+    LaunchedEffect(chapterContent, activeChapterId) {
         if (tfv.text != chapterContent) {
             tfv = TextFieldValue(
                 text = chapterContent,
@@ -140,6 +143,9 @@ fun EscribirScreen(
     val currentChapterIndex = activeChapters.indexOfFirst { it.id == activeChapterId }
     val hasPreviousChapter = currentChapterIndex > 0
     val hasNextChapter = currentChapterIndex >= 0 && currentChapterIndex < activeChapters.size - 1
+
+    val textPrimary = if (isDark) Color(0xFFE2E8F0) else Color(0xFF28221E)
+    val textMuted = if (isDark) Color(0xFF94A3B8) else Color(0xFF8D7B68)
 
     Box(modifier = modifier.fillMaxSize()) {
         Column(
@@ -228,7 +234,7 @@ fun EscribirScreen(
                     }
                 }
             } else {
-                // 1. Chapter Switcher Pill Bar (Matches screen.png / code.html)
+                // 1. Chapter Switcher Pill Bar
                 Surface(
                     shape = RoundedCornerShape(20.dp),
                     color = MaterialTheme.colorScheme.surfaceContainerLowest,
@@ -255,7 +261,7 @@ fun EscribirScreen(
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBackIos,
                                 contentDescription = "Capítulo anterior",
-                                tint = if (hasPreviousChapter) TintaMuted else Color.LightGray,
+                                tint = if (hasPreviousChapter) textMuted else Color.Gray,
                                 modifier = Modifier.size(14.dp)
                             )
                         }
@@ -271,7 +277,7 @@ fun EscribirScreen(
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
                                 Text(
-                                    text = currentNovel?.title?.uppercase() ?: "AMOR DE VERANO",
+                                    text = currentNovel?.title?.uppercase() ?: "MI NOVELA",
                                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
                                     color = TintaAccent,
                                     fontWeight = FontWeight.Bold,
@@ -287,14 +293,14 @@ fun EscribirScreen(
                                         text = currentChapter?.let { "Cap. ${it.number}: ${it.title}" } ?: "Seleccionar Capítulo",
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Bold,
-                                        color = TintaCharcoal,
+                                        color = textPrimary,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
                                     Icon(
                                         imageVector = Icons.Default.KeyboardArrowDown,
                                         contentDescription = "Desplegar capítulos",
-                                        tint = TintaMuted,
+                                        tint = textMuted,
                                         modifier = Modifier.size(16.dp)
                                     )
                                 }
@@ -315,7 +321,7 @@ fun EscribirScreen(
                                                 Text(
                                                     text = "Cap. ${chapter.number}: ${chapter.title}",
                                                     fontWeight = if (chapter.id == activeChapterId) FontWeight.Bold else FontWeight.Normal,
-                                                    color = if (chapter.id == activeChapterId) TintaAccent else TintaCharcoal
+                                                    color = if (chapter.id == activeChapterId) TintaAccent else textPrimary
                                                 )
                                                 if (chapter.isFinished) {
                                                     Text(" ✓", color = Color(0xFF10B981), fontSize = 12.sp, fontWeight = FontWeight.Bold)
@@ -359,14 +365,14 @@ fun EscribirScreen(
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
                                 contentDescription = "Capítulo siguiente",
-                                tint = if (hasNextChapter) TintaMuted else Color.LightGray,
+                                tint = if (hasNextChapter) textMuted else Color.Gray,
                                 modifier = Modifier.size(14.dp)
                             )
                         }
                     }
                 }
 
-                // 2. Compact Pomodoro Bar & Status Pill (Matches screen.png)
+                // 2. Compact Pomodoro Bar & Status Pill
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -375,8 +381,8 @@ fun EscribirScreen(
                     // Pomodoro Widget
                     Surface(
                         shape = CircleShape,
-                        color = Color(0xFFF5EFE6),
-                        border = BorderStroke(1.dp, Color(0xFFE8DDCF)),
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
                         modifier = Modifier.clip(CircleShape)
                     ) {
                         Row(
@@ -397,12 +403,12 @@ fun EscribirScreen(
                                 text = timerFormatted,
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
-                                color = TintaCharcoal
+                                color = textPrimary
                             )
                             Text(
                                 text = "· $wordsWrittenInSession palabras hoy",
                                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                                color = TintaMuted
+                                color = textMuted
                             )
                             IconButton(
                                 onClick = { viewModel.toggleTimer() },
@@ -431,7 +437,7 @@ fun EscribirScreen(
                             Text(
                                 text = if (isFinished) "✓ Terminado" else "Borrador",
                                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                                color = TintaMuted,
+                                color = textMuted,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                             )
@@ -450,25 +456,25 @@ fun EscribirScreen(
                             Text(
                                 text = "Guardado",
                                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                                color = Color(0xFF047857),
+                                color = Color(0xFF10B981),
                                 fontWeight = FontWeight.Medium
                             )
                         }
                     }
                 }
 
-                // 3. Manuscript Paper Sheet (Paper Texture & Editorial Look matching screen.png)
+                // 3. Manuscript Paper Sheet
                 val canvasBg = when (paperTexture) {
-                    "parchment" -> TintaCream
-                    "lined" -> TintaPaperLined
-                    "grid" -> TintaPaperGrid
+                    "parchment" -> if (isDark) TintaCreamDark else TintaCreamLight
+                    "lined" -> if (isDark) TintaPaperLinedDark else TintaPaperLinedLight
+                    "grid" -> if (isDark) TintaPaperGridDark else TintaPaperGridLight
                     else -> MaterialTheme.colorScheme.surfaceContainerLow
                 }
 
                 val lineOverlayColor = when (paperTexture) {
-                    "parchment" -> Color(0xFFD9C3A3)
-                    "lined" -> Color(0xFF94A3B8)
-                    "grid" -> Color(0xFFCBD5E1)
+                    "parchment" -> if (isDark) Color(0xFF423B32) else Color(0xFFD9C3A3)
+                    "lined" -> if (isDark) Color(0xFF475569) else Color(0xFF94A3B8)
+                    "grid" -> if (isDark) Color(0xFF475569) else Color(0xFFCBD5E1)
                     else -> Color.Transparent
                 }
 
@@ -476,7 +482,7 @@ fun EscribirScreen(
                     shape = RoundedCornerShape(16.dp),
                     color = canvasBg,
                     shadowElevation = 4.dp,
-                    border = BorderStroke(1.dp, Color(0xFFE9DFD1)),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("manuscript_canvas")
@@ -535,26 +541,26 @@ fun EscribirScreen(
                                     Text(
                                         text = "Primera edición · Borrador de autor",
                                         style = TextStyle(fontFamily = NewsreaderFontFamily, fontStyle = FontStyle.Italic, fontSize = 11.sp),
-                                        color = TintaMuted
+                                        color = textMuted
                                     )
                                 }
 
                                 Surface(
                                     shape = RoundedCornerShape(6.dp),
-                                    color = Color.White.copy(alpha = 0.7f),
-                                    border = BorderStroke(1.dp, Color(0xFFE8DDCF))
+                                    color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.8f),
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
                                 ) {
                                     Text(
-                                        text = currentChapter?.title?.uppercase() ?: "DEDICATORIA",
+                                        text = currentChapter?.title?.uppercase() ?: "MANUSCRITO",
                                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
-                                        color = TintaMuted,
+                                        color = textMuted,
                                         fontWeight = FontWeight.Bold,
                                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                                     )
                                 }
                             }
 
-                            // Editable Prose Editor
+                            // Editable Prose Editor (WYSIWYG Markdown Visual Transformation)
                             val editorFontFamily = if (selectedFont == "Newsreader") NewsreaderFontFamily else PlusJakartaSansFontFamily
                             BasicTextField(
                                 value = tfv,
@@ -564,11 +570,12 @@ fun EscribirScreen(
                                         viewModel.updateChapterContent(newTfv.text)
                                     }
                                 },
+                                visualTransformation = MarkdownWysiwygVisualTransformation(editorFontFamily, isDark),
                                 textStyle = TextStyle(
                                     fontFamily = editorFontFamily,
                                     fontSize = 18.sp,
                                     lineHeight = 28.sp,
-                                    color = TintaCharcoal
+                                    color = textPrimary
                                 ),
                                 cursorBrush = SolidColor(TintaAccent),
                                 modifier = Modifier
@@ -587,7 +594,7 @@ fun EscribirScreen(
                                 Text(
                                     text = "PÁG. 1 · TINTA & TRAMA",
                                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
-                                    color = TintaMuted.copy(alpha = 0.6f),
+                                    color = textMuted.copy(alpha = 0.6f),
                                     letterSpacing = 1.2.sp
                                 )
                             }
@@ -599,32 +606,19 @@ fun EscribirScreen(
             // Margin Notes Section
             SectionMarginNotes(
                 notes = marginNotes,
+                textPrimary = textPrimary,
                 onAddPostIt = { viewModel.openCreateModal("note") },
                 onDeleteNote = { noteId -> viewModel.deleteMarginNote(noteId) }
             )
 
-            Spacer(modifier = Modifier.height(110.dp))
+            Spacer(modifier = Modifier.height(130.dp))
         }
 
-        // 4. Quick Note Floating Action Button (FAB)
-        FloatingActionButton(
-            onClick = { viewModel.openCreateModal("note") },
-            shape = CircleShape,
-            containerColor = TintaAccent,
-            contentColor = Color.White,
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(bottom = 80.dp, end = 20.dp)
-                .size(48.dp)
-        ) {
-            Icon(imageVector = Icons.Default.Edit, contentDescription = "Nueva nota rápida", modifier = Modifier.size(20.dp))
-        }
-
-        // 5. Ergonomic Writer's Dock Toolbar (Bottom Dock matching screen.png / code.html)
+        // 4. Ergonomic Writer's Dock Toolbar (Bottom Dock)
         Surface(
-            color = Color(0xFFFAF6EE).copy(alpha = 0.95f),
+            color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.98f),
             tonalElevation = 8.dp,
-            border = BorderStroke(1.dp, Color(0xFFE8DDCF)),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
@@ -642,7 +636,7 @@ fun EscribirScreen(
                     Text(
                         text = "PAPEL:",
                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
-                        color = TintaMuted,
+                        color = textMuted,
                         fontWeight = FontWeight.Bold
                     )
 
@@ -650,24 +644,28 @@ fun EscribirScreen(
                         label = "Pergamino",
                         dotColor = Color(0xFFD97706),
                         isSelected = paperTexture == "parchment",
+                        isDark = isDark,
                         onClick = { viewModel.setPaperTexture("parchment") }
                     )
                     PaperChip(
                         label = "Limpio",
                         dotColor = Color(0xFFA8A29E),
                         isSelected = paperTexture == "plain",
+                        isDark = isDark,
                         onClick = { viewModel.setPaperTexture("plain") }
                     )
                     PaperChip(
                         label = "Rayado",
                         dotColor = Color(0xFF60A5FA),
                         isSelected = paperTexture == "lined",
+                        isDark = isDark,
                         onClick = { viewModel.setPaperTexture("lined") }
                     )
                     PaperChip(
                         label = "Retícula",
                         dotColor = Color(0xFF34D399),
                         isSelected = paperTexture == "grid",
+                        isDark = isDark,
                         onClick = { viewModel.setPaperTexture("grid") }
                     )
                 }
@@ -680,13 +678,13 @@ fun EscribirScreen(
                 ) {
                     // Formatting Tools Group
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        FormatToolButton(text = "B", isBold = true, onClick = {
+                        FormatToolButton(text = "B", isBold = true, textPrimary = textPrimary, onClick = {
                             viewModel.applyMarkdownFormat("bold", tfv.selection.start, tfv.selection.end)
                         })
-                        FormatToolButton(text = "I", isItalic = true, onClick = {
+                        FormatToolButton(text = "I", isItalic = true, textPrimary = textPrimary, onClick = {
                             viewModel.applyMarkdownFormat("italic", tfv.selection.start, tfv.selection.end)
                         })
-                        FormatToolButton(text = "H1", isBold = true, onClick = {
+                        FormatToolButton(text = "H1", isBold = true, textPrimary = textPrimary, onClick = {
                             viewModel.applyMarkdownFormat("header", tfv.selection.start, tfv.selection.end)
                         })
                         FormatIconButton(icon = Icons.Default.FormatQuote, onClick = {
@@ -698,15 +696,15 @@ fun EscribirScreen(
                     }
 
                     // Divider
-                    Box(modifier = Modifier.height(20.dp).width(1.dp).background(Color(0xFFE8DDCF)))
+                    Box(modifier = Modifier.height(20.dp).width(1.dp).background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)))
 
                     // Assistant / History Group
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         // Musas Creative Craft Assist
                         Surface(
                             shape = RoundedCornerShape(8.dp),
-                            color = TintaAccent.copy(alpha = 0.1f),
-                            border = BorderStroke(1.dp, TintaAccent.copy(alpha = 0.3f)),
+                            color = TintaAccent.copy(alpha = 0.15f),
+                            border = BorderStroke(1.dp, TintaAccent.copy(alpha = 0.4f)),
                             modifier = Modifier
                                 .height(32.dp)
                                 .clip(RoundedCornerShape(8.dp))
@@ -730,10 +728,10 @@ fun EscribirScreen(
                             modifier = Modifier
                                 .size(32.dp)
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(Color.White)
-                                .border(1.dp, Color(0xFFE8DDCF), RoundedCornerShape(8.dp))
+                                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
                         ) {
-                            Icon(imageVector = Icons.Default.History, contentDescription = "Historial", tint = TintaMuted, modifier = Modifier.size(16.dp))
+                            Icon(imageVector = Icons.Default.History, contentDescription = "Historial", tint = textMuted, modifier = Modifier.size(16.dp))
                         }
                     }
                 }
@@ -759,12 +757,13 @@ private fun PaperChip(
     label: String,
     dotColor: Color,
     isSelected: Boolean,
+    isDark: Boolean,
     onClick: () -> Unit
 ) {
     Surface(
         shape = CircleShape,
-        color = if (isSelected) Color(0xFFF4ECE1) else Color.White.copy(alpha = 0.7f),
-        border = BorderStroke(1.dp, if (isSelected) Color(0xFFE8DDCF) else Color(0xFFE8DDCF).copy(alpha = 0.5f)),
+        color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
+        border = BorderStroke(1.dp, if (isSelected) TintaAccent else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
         modifier = Modifier
             .clip(CircleShape)
             .clickable { onClick() }
@@ -783,7 +782,7 @@ private fun PaperChip(
             Text(
                 text = label,
                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                color = if (isSelected) TintaCharcoal else TintaMuted,
+                color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
             )
         }
@@ -795,12 +794,13 @@ private fun FormatToolButton(
     text: String,
     isBold: Boolean = false,
     isItalic: Boolean = false,
+    textPrimary: Color,
     onClick: () -> Unit
 ) {
     Surface(
         shape = RoundedCornerShape(8.dp),
-        color = Color.White,
-        border = BorderStroke(1.dp, Color(0xFFE8DDCF)),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
         modifier = Modifier
             .size(32.dp)
             .clip(RoundedCornerShape(8.dp))
@@ -812,7 +812,7 @@ private fun FormatToolButton(
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = if (isBold) FontWeight.Bold else FontWeight.Normal,
                 fontStyle = if (isItalic) FontStyle.Italic else FontStyle.Normal,
-                color = TintaCharcoal
+                color = textPrimary
             )
         }
     }
@@ -825,8 +825,8 @@ private fun FormatIconButton(
 ) {
     Surface(
         shape = RoundedCornerShape(8.dp),
-        color = Color.White,
-        border = BorderStroke(1.dp, Color(0xFFE8DDCF)),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
         modifier = Modifier
             .size(32.dp)
             .clip(RoundedCornerShape(8.dp))
@@ -836,7 +836,7 @@ private fun FormatIconButton(
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = TintaMuted,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(14.dp)
             )
         }
@@ -932,6 +932,7 @@ private fun VersionHistoryDialog(
 @Composable
 private fun SectionMarginNotes(
     notes: List<MarginNote>,
+    textPrimary: Color,
     onAddPostIt: () -> Unit,
     onDeleteNote: (Long) -> Unit
 ) {
@@ -955,7 +956,7 @@ private fun SectionMarginNotes(
                     text = "Notas al Margen",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = TintaCharcoal
+                    color = textPrimary
                 )
             }
 
@@ -1001,7 +1002,7 @@ private fun SectionMarginNotes(
                             Icon(
                                 imageVector = Icons.Default.Close,
                                 contentDescription = "Eliminar nota",
-                                tint = TintaMuted,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(14.dp)
                             )
                         }
@@ -1010,7 +1011,7 @@ private fun SectionMarginNotes(
                     Text(
                         text = note.content,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = TintaCharcoal
+                        color = textPrimary
                     )
                 }
             }

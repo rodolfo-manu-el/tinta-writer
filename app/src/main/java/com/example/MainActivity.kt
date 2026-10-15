@@ -84,29 +84,30 @@ class MainActivity : ComponentActivity() {
                         )
                     },
                     floatingActionButton = {
-                        FloatingActionButton(
-                            onClick = {
-                                val targetCreate = when (currentTab) {
-                                    TintaTab.PERSONAJES -> "character"
-                                    TintaTab.ESCRIBIR -> "note"
-                                    else -> "novel"
-                                }
-                                viewModel.openCreateModal(targetCreate)
-                            },
-                            shape = CircleShape,
-                            containerColor = MaterialTheme.colorScheme.primaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                            elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 8.dp),
-                            modifier = Modifier
-                                .padding(bottom = 12.dp)
-                                .size(56.dp)
-                                .testTag("global_fab_button")
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.DriveFileRenameOutline,
-                                contentDescription = "Crear nuevo elemento",
-                                modifier = Modifier.size(26.dp)
-                            )
+                        if (currentTab != TintaTab.ESCRIBIR) {
+                            FloatingActionButton(
+                                onClick = {
+                                    val targetCreate = when (currentTab) {
+                                        TintaTab.PERSONAJES -> "character"
+                                        else -> "novel"
+                                    }
+                                    viewModel.openCreateModal(targetCreate)
+                                },
+                                shape = CircleShape,
+                                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 8.dp),
+                                modifier = Modifier
+                                    .padding(bottom = 12.dp)
+                                    .size(56.dp)
+                                    .testTag("global_fab_button")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.DriveFileRenameOutline,
+                                    contentDescription = "Crear nuevo elemento",
+                                    modifier = Modifier.size(26.dp)
+                                )
+                            }
                         }
                     }
                 ) { innerPadding ->

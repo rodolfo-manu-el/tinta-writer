@@ -244,8 +244,6 @@ class TintaViewModel(application: Application) : AndroidViewModel(application) {
     private val _showBackupDialog = MutableStateFlow(false)
     val showBackupDialog: StateFlow<Boolean> = _showBackupDialog.asStateFlow()
 
-    private val _showImportDialog = MutableStateFlow(false)
-    val showImportDialog: StateFlow<Boolean> = _showImportDialog.asStateFlow()
 
     private val _backupJsonString = MutableStateFlow<String?>(null)
     val backupJsonString: StateFlow<String?> = _backupJsonString.asStateFlow()
@@ -692,78 +690,6 @@ class TintaViewModel(application: Application) : AndroidViewModel(application) {
         _showBackupDialog.value = false
     }
 
-    fun openImportDialog() {
-        _showImportDialog.value = true
-    }
-
-    fun closeImportDialog() {
-        _showImportDialog.value = false
-    }
-
-    fun importJson(jsonString: String) {
-        viewModelScope.launch {
-            val success = repository.importJsonData(jsonString)
-            if (success) {
-                val novels = repository.allNovels.firstOrNull() ?: emptyList()
-                if (novels.isNotEmpty()) {
-                    val lastImported = novels.firstOrNull { it.lastEdited == "Recién importado" } ?: novels.first()
-                    selectNovel(lastImported.id)
-                }
-                showToast("¡Biblioteca importada con éxito!")
-                _showImportDialog.value = false
-            } else {
-                showToast("El archivo no tiene el formato válido de Tinta & Trama")
-            }
-        }
-    }
-
-    fun importJsonFromUri(context: Context, uri: Uri) {
-        viewModelScope.launch {
-            val success = repository.importJsonFromUri(context, uri)
-            if (success) {
-                val novels = repository.allNovels.firstOrNull() ?: emptyList()
-                if (novels.isNotEmpty()) {
-                    val lastImported = novels.firstOrNull { it.lastEdited == "Recién importado" } ?: novels.first()
-                    selectNovel(lastImported.id)
-                }
-                showToast("¡Biblioteca importada con éxito desde archivo!")
-                _showImportDialog.value = false
-            } else {
-                showToast("El archivo seleccionado no contiene un JSON de Tinta válido")
-            }
-        }
-    }
-
-    fun loadSummerLoveStory() {
-        viewModelScope.launch {
-            try {
-                val inputStream = getApplication<Application>().assets.open("summer_love.json")
-                val jsonString = inputStream.bufferedReader().use { it.readText() }
-                val success = repository.importJsonData(jsonString)
-                if (success) {
-                    showToast("¡Historia 'Amor de verano' cargada con éxito!")
-                    _showImportDialog.value = false
-                } else {
-                    showToast("No se pudo cargar la historia")
-                }
-            } catch (e: Exception) {
-                showToast("Error: ${e.message}")
-            }
-        }
-    }
-
-    fun clearAllStories() {
-        viewModelScope.launch {
-            repository.clearAllData()
-            _selectedNovelId.value = null
-            _activeNovelId.value = ""
-            _activeChapterId.value = ""
-            _chapterContent.value = ""
-            _chapterWordCount.value = 0
-            _isChapterFinished.value = false
-            showToast("Biblioteca vaciada. Cero historias.")
-        }
-    }
 
     fun exportManuscript(format: String, context: Context) {
         val novel = currentNovel.value ?: return
@@ -788,8 +714,21 @@ class TintaViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         try {
-            val extension = if (format == "pdf") "pdf" else if (format == "epub") "epub" else "md"
-            val file = java.io.File(context.cacheDir, "$fileName.$extension")
+            val extension = when (format.lowercase()) {
+                "pdf" -> "pdf"
+                "epub" -> "epub"
+                else -> "md"
+            }
+            val mimeType = when (format.lowercase()) {
+                "pdf" -> "application/pdf"
+                "epub" -> "application/epub+zip"
+                else -> "text/markdown"
+            }
+
+            val exportDir = java.io.File(context.cacheDir, "exports")
+            if (!exportDir.exists()) exportDir.mkdirs()
+
+            val file = java.io.File(exportDir, "$fileName.$extension")
             file.writeText(contentBuilder.toString())
 
             val uri = androidx.core.content.FileProvider.getUriForFile(
@@ -799,20 +738,21 @@ class TintaViewModel(application: Application) : AndroidViewModel(application) {
             )
 
             val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-                type = "text/plain"
+                type = mimeType
+                putExtra(android.content.Intent.EXTRA_SUBJECT, "${novel.title} - Manuscrito (${format.uppercase()})")
+                putExtra(android.content.Intent.EXTRA_TEXT, "Manuscrito de '${novel.title}' exportado en formato ${format.uppercase()} desde Tinta & Trama.")
                 putExtra(android.content.Intent.EXTRA_STREAM, uri)
                 addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
-            context.startActivity(android.content.Intent.createChooser(shareIntent, "Guardar o compartir manuscrito ($format)"))
-            showToast(" Exportando manuscrito en ${format.uppercase()}")
+            val chooser = android.content.Intent.createChooser(shareIntent, "Exportar manuscrito (${format.uppercase()})")
+            chooser.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(chooser)
+            showToast("📄 Exportando manuscrito en ${format.uppercase()}")
         } catch (e: Exception) {
-            showToast("Exportado exitosamente en formato ${format.uppercase()}")
+            showToast("Error al exportar: ${e.message}")
         }
     }
 
-    fun importBackupMock() {
-        openImportDialog()
-    }
 
     fun showToast(msg: String) {
         _toastMessage.value = msg

@@ -1,8 +1,10 @@
 package com.example.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -27,15 +29,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBackIos
 import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.AutoFixHigh
-import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Draw
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FormatListBulleted
 import androidx.compose.material.icons.filled.FormatQuote
-import androidx.compose.material.icons.filled.FormatSize
-import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Pause
@@ -43,7 +44,6 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
-import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -51,6 +51,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -88,6 +89,15 @@ import com.example.ui.TintaViewModel
 import com.example.ui.theme.NewsreaderFontFamily
 import com.example.ui.theme.PlusJakartaSansFontFamily
 
+// Custom Tinta & Trama Editorial Colors matching screen.png / code.html
+private val TintaCream = Color(0xFFFBF0D9)
+private val TintaPaperLined = Color(0xFFF1F5F9)
+private val TintaPaperGrid = Color(0xFFE2E8F0)
+private val TintaAccent = Color(0xFFE06738)
+private val TintaAccentDark = Color(0xFFC25327)
+private val TintaCharcoal = Color(0xFF28221E)
+private val TintaMuted = Color(0xFF8D7B68)
+
 @Composable
 fun EscribirScreen(
     viewModel: TintaViewModel,
@@ -110,247 +120,230 @@ fun EscribirScreen(
     val timerSeconds by viewModel.timerSeconds.collectAsStateWithLifecycle()
     val wordsWrittenInSession by viewModel.wordsWrittenInSession.collectAsStateWithLifecycle()
 
-    var tfv by remember(chapterContent) {
+    var tfv by remember(activeChapterId) {
         mutableStateOf(TextFieldValue(text = chapterContent, selection = TextRange(chapterContent.length)))
+    }
+
+    androidx.compose.runtime.LaunchedEffect(chapterContent, activeChapterId) {
+        if (tfv.text != chapterContent) {
+            tfv = TextFieldValue(
+                text = chapterContent,
+                selection = TextRange(chapterContent.length)
+            )
+        }
     }
 
     var isChapterDropdownExpanded by remember { mutableStateOf(false) }
     var showVersionsDialog by remember { mutableStateOf(false) }
 
-    val readingTimeMin = (wordCount / 250).coerceAtLeast(1)
     val currentChapter = activeChapters.find { it.id == activeChapterId }
     val currentChapterIndex = activeChapters.indexOfFirst { it.id == activeChapterId }
     val hasPreviousChapter = currentChapterIndex > 0
     val hasNextChapter = currentChapterIndex >= 0 && currentChapterIndex < activeChapters.size - 1
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        if (selectedNovelId.isNullOrBlank() || currentNovel == null) {
-            // Empty State when no novel is selected
-            Card(
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("escribir_empty_state_card")
-            ) {
-                Column(
+    Box(modifier = modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            if (selectedNovelId.isNullOrBlank() || currentNovel == null) {
+                // Empty State when no novel is selected
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                        .testTag("escribir_empty_state_card")
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Draw,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(44.dp)
-                    )
-                    Text(
-                        text = "No hay ninguna historia seleccionada. Selecciona una historia en la Biblioteca para escribir en el editor.",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        textAlign = TextAlign.Center
-                    )
-                    Button(
-                        onClick = { viewModel.selectTab(TintaTab.BIBLIOTECA) },
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                        modifier = Modifier.testTag("empty_state_go_to_biblioteca_button")
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        Text("Ir a la Biblioteca")
+                        Icon(
+                            imageVector = Icons.Default.Draw,
+                            contentDescription = null,
+                            tint = TintaAccent,
+                            modifier = Modifier.size(44.dp)
+                        )
+                        Text(
+                            text = "No hay ninguna historia seleccionada. Selecciona una historia en la Biblioteca para escribir en el editor.",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            textAlign = TextAlign.Center
+                        )
+                        Button(
+                            onClick = { viewModel.selectTab(TintaTab.BIBLIOTECA) },
+                            colors = ButtonDefaults.buttonColors(containerColor = TintaAccent),
+                            modifier = Modifier.testTag("empty_state_go_to_biblioteca_button")
+                        ) {
+                            Text("Ir a la Biblioteca")
+                        }
                     }
                 }
-            }
-        } else if (activeChapters.isEmpty()) {
-            // Empty chapters state for active novel
-            Card(
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("no_chapters_card")
-            ) {
-                Column(
+            } else if (activeChapters.isEmpty()) {
+                // Empty chapters state for active novel
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                        .testTag("no_chapters_card")
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.MenuBook,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(44.dp)
-                    )
-                    Text(
-                        text = "La historia '${currentNovel?.title}' aún no tiene ningún capítulo.",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        textAlign = TextAlign.Center
-                    )
-                    Button(
-                        onClick = { viewModel.createChapter() },
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                        modifier = Modifier.testTag("create_first_chapter_button")
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        Icon(imageVector = Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Crear Primer Capítulo", fontWeight = FontWeight.Bold)
+                        Icon(
+                            imageVector = Icons.Default.MenuBook,
+                            contentDescription = null,
+                            tint = TintaAccent,
+                            modifier = Modifier.size(44.dp)
+                        )
+                        Text(
+                            text = "La historia '${currentNovel?.title}' aún no tiene ningún capítulo.",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            textAlign = TextAlign.Center
+                        )
+                        Button(
+                            onClick = { viewModel.createChapter() },
+                            colors = ButtonDefaults.buttonColors(containerColor = TintaAccent),
+                            modifier = Modifier.testTag("create_first_chapter_button")
+                        ) {
+                            Icon(imageVector = Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Crear Primer Capítulo", fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
-            }
-        } else {
-            // Chapter Switcher & Telemetry Card
-            Card(
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+            } else {
+                // 1. Chapter Switcher Pill Bar (Matches screen.png / code.html)
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerLowest,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+                    shadowElevation = 2.dp,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.weight(1f)
+                        IconButton(
+                            onClick = {
+                                if (hasPreviousChapter) {
+                                    viewModel.selectChapter(activeChapters[currentChapterIndex - 1].id)
+                                }
+                            },
+                            enabled = hasPreviousChapter,
+                            modifier = Modifier.size(32.dp)
                         ) {
-                            IconButton(
-                                onClick = {
-                                    if (hasPreviousChapter) {
-                                        viewModel.selectChapter(activeChapters[currentChapterIndex - 1].id)
-                                    }
-                                },
-                                enabled = hasPreviousChapter,
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .clip(CircleShape)
-                                    .background(if (hasPreviousChapter) MaterialTheme.colorScheme.surfaceContainerHigh else MaterialTheme.colorScheme.surfaceContainerLow)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.ArrowBackIos,
-                                    contentDescription = "Capítulo anterior",
-                                    tint = if (hasPreviousChapter) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBackIos,
+                                contentDescription = "Capítulo anterior",
+                                tint = if (hasPreviousChapter) TintaMuted else Color.LightGray,
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
 
-                            // Interactive Dropdown Chapter Selector Trigger
-                            Box(modifier = Modifier.weight(1f)) {
-                                Column(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .clickable { isChapterDropdownExpanded = true }
-                                        .padding(vertical = 4.dp, horizontal = 6.dp)
-                                        .testTag("chapter_selector_dropdown_trigger")
+                        // Chapter Selector Menu Trigger
+                        Box(modifier = Modifier.weight(1f)) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .clickable { isChapterDropdownExpanded = true }
+                                    .padding(vertical = 2.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = currentNovel?.title?.uppercase() ?: "AMOR DE VERANO",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                                    color = TintaAccent,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 1.2.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
                                     Text(
-                                        text = currentNovel?.title?.uppercase() ?: "MANUSCRITO EN CURSO",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.primary,
+                                        text = currentChapter?.let { "Cap. ${it.number}: ${it.title}" } ?: "Seleccionar Capítulo",
+                                        style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Bold,
-                                        letterSpacing = 1.2.sp,
+                                        color = TintaCharcoal,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                    ) {
-                                        Text(
-                                            text = currentChapter?.let { "Cap. ${it.number}: ${it.title}" } ?: "Seleccionar Capítulo",
-                                            style = MaterialTheme.typography.headlineSmall,
-                                            color = MaterialTheme.colorScheme.onSurface,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                            modifier = Modifier.weight(1f, fill = false)
-                                        )
-                                        Icon(
-                                            imageVector = Icons.Default.ArrowDropDown,
-                                            contentDescription = "Desplegar capítulos",
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    }
+                                    Icon(
+                                        imageVector = Icons.Default.KeyboardArrowDown,
+                                        contentDescription = "Desplegar capítulos",
+                                        tint = TintaMuted,
+                                        modifier = Modifier.size(16.dp)
+                                    )
                                 }
+                            }
 
-                                // Chapter Selector Dropdown Menu
-                                DropdownMenu(
-                                    expanded = isChapterDropdownExpanded,
-                                    onDismissRequest = { isChapterDropdownExpanded = false }
-                                ) {
-                                    activeChapters.forEach { chapter ->
-                                        DropdownMenuItem(
-                                            text = {
-                                                Row(
-                                                    modifier = Modifier.fillMaxWidth(),
-                                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                                    verticalAlignment = Alignment.CenterVertically
-                                                ) {
-                                                    Text(
-                                                        text = "Cap. ${chapter.number}: ${chapter.title}",
-                                                        fontWeight = if (chapter.id == activeChapterId) FontWeight.Bold else FontWeight.Normal,
-                                                        color = if (chapter.id == activeChapterId) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                                                    )
-                                                    if (chapter.isFinished) {
-                                                        Text(
-                                                            text = " ✓",
-                                                            color = MaterialTheme.colorScheme.secondary,
-                                                            fontSize = 12.sp,
-                                                            fontWeight = FontWeight.Bold
-                                                        )
-                                                    }
-                                                }
-                                            },
-                                            onClick = {
-                                                viewModel.selectChapter(chapter.id)
-                                                isChapterDropdownExpanded = false
-                                            },
-                                            modifier = Modifier.testTag("chapter_item_${chapter.id}")
-                                        )
-                                    }
-
+                            DropdownMenu(
+                                expanded = isChapterDropdownExpanded,
+                                onDismissRequest = { isChapterDropdownExpanded = false }
+                            ) {
+                                activeChapters.forEach { chapter ->
                                     DropdownMenuItem(
                                         text = {
                                             Row(
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
                                             ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.Add,
-                                                    contentDescription = null,
-                                                    tint = MaterialTheme.colorScheme.primary,
-                                                    modifier = Modifier.size(16.dp)
-                                                )
                                                 Text(
-                                                    text = "Nuevo Capítulo",
-                                                    color = MaterialTheme.colorScheme.primary,
-                                                    fontWeight = FontWeight.Bold
+                                                    text = "Cap. ${chapter.number}: ${chapter.title}",
+                                                    fontWeight = if (chapter.id == activeChapterId) FontWeight.Bold else FontWeight.Normal,
+                                                    color = if (chapter.id == activeChapterId) TintaAccent else TintaCharcoal
                                                 )
+                                                if (chapter.isFinished) {
+                                                    Text(" ✓", color = Color(0xFF10B981), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                                }
                                             }
                                         },
                                         onClick = {
+                                            viewModel.selectChapter(chapter.id)
                                             isChapterDropdownExpanded = false
-                                            viewModel.createChapter()
-                                        },
-                                        modifier = Modifier.testTag("create_new_chapter_option")
+                                        }
                                     )
                                 }
+
+                                DropdownMenuItem(
+                                    text = {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            Icon(imageVector = Icons.Default.Add, contentDescription = null, tint = TintaAccent, modifier = Modifier.size(16.dp))
+                                            Text(text = "Nuevo Capítulo", color = TintaAccent, fontWeight = FontWeight.Bold)
+                                        }
+                                    },
+                                    onClick = {
+                                        isChapterDropdownExpanded = false
+                                        viewModel.createChapter()
+                                    }
+                                )
                             }
                         }
 
@@ -361,394 +354,139 @@ fun EscribirScreen(
                                 }
                             },
                             enabled = hasNextChapter,
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(if (hasNextChapter) MaterialTheme.colorScheme.surfaceContainerHigh else MaterialTheme.colorScheme.surfaceContainerLow)
+                            modifier = Modifier.size(32.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
                                 contentDescription = "Capítulo siguiente",
-                                tint = if (hasNextChapter) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
-                                modifier = Modifier.size(16.dp)
+                                tint = if (hasNextChapter) TintaMuted else Color.LightGray,
+                                modifier = Modifier.size(14.dp)
                             )
-                        }
-                    }
-
-                    // Sub-bar status and zen toggle
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Surface(
-                                shape = CircleShape,
-                                color = if (isFinished) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer,
-                                modifier = Modifier
-                                    .clip(CircleShape)
-                                    .clickable { viewModel.toggleChapterFinished() }
-                                    .testTag("status_toggle_button")
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.CheckCircle,
-                                        contentDescription = null,
-                                        tint = if (isFinished) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.secondary,
-                                        modifier = Modifier.size(14.dp)
-                                    )
-                                    Text(
-                                        text = if (isFinished) "✓ Terminado" else "Borrador Vivo",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = if (isFinished) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSecondaryContainer,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
-
-                            Text(
-                                text = "Guardado local automático",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-
-                        Surface(
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.surfaceContainerHighest,
-                            modifier = Modifier
-                                .clip(CircleShape)
-                                .clickable { viewModel.toggleZenMode() }
-                                .testTag("zen_mode_button")
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Fullscreen,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Text(
-                                    text = "Inmersivo",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
                         }
                     }
                 }
-            }
 
-            // Floating Writer Toolbar
-            Card(
-                shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier.padding(10.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    // Row 1: Paper textures & font family
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            modifier = Modifier.horizontalScroll(rememberScrollState())
-                        ) {
-                            TextureChip(
-                                icon = "📄",
-                                label = "Limpio",
-                                isSelected = paperTexture == "plain",
-                                onClick = { viewModel.setPaperTexture("plain") }
-                            )
-                            TextureChip(
-                                icon = "📜",
-                                label = "Pergamino",
-                                isSelected = paperTexture == "parchment",
-                                onClick = { viewModel.setPaperTexture("parchment") }
-                            )
-                            TextureChip(
-                                icon = "📓",
-                                label = "Rayado",
-                                isSelected = paperTexture == "lined",
-                                onClick = { viewModel.setPaperTexture("lined") }
-                            )
-                            TextureChip(
-                                icon = "🔲",
-                                label = "Cuadrícula",
-                                isSelected = paperTexture == "grid",
-                                onClick = { viewModel.setPaperTexture("grid") }
-                            )
-                        }
-
-                        Surface(
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                            modifier = Modifier
-                                .clip(CircleShape)
-                                .clickable { viewModel.toggleFont() }
-                                .testTag("font_family_button")
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.FormatSize,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(15.dp)
-                                )
-                                Text(
-                                    text = selectedFont,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
-                    }
-
-                    // Row 2: Formatting shortcuts & History/Version control
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            FormatButton(text = "B", isBold = true, onClick = {
-                                viewModel.applyMarkdownFormat("bold", tfv.selection.start, tfv.selection.end)
-                            })
-                            FormatButton(text = "I", isItalic = true, onClick = {
-                                viewModel.applyMarkdownFormat("italic", tfv.selection.start, tfv.selection.end)
-                            })
-                            FormatButton(text = "H", isBold = true, onClick = {
-                                viewModel.applyMarkdownFormat("header", tfv.selection.start, tfv.selection.end)
-                            })
-                            FormatIconButton(icon = Icons.Default.FormatQuote, onClick = {
-                                viewModel.applyMarkdownFormat("quote", tfv.selection.start, tfv.selection.end)
-                            })
-                            FormatIconButton(icon = Icons.Default.FormatListBulleted, onClick = {
-                                viewModel.applyMarkdownFormat("list", tfv.selection.start, tfv.selection.end)
-                            })
-
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = MaterialTheme.colorScheme.primaryContainer,
-                                modifier = Modifier
-                                    .size(32.dp)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .clickable { viewModel.showToast("Chispa creativa: metáfora o sugerencia de ritmo aplicada") },
-                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = Icons.Default.AutoFixHigh,
-                                        contentDescription = "Chispa",
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-                            }
-                        }
-
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            // Save version snapshot button
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                                modifier = Modifier
-                                    .height(32.dp)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .clickable { viewModel.saveCurrentVersion("Snapshot manual") }
-                                    .testTag("save_version_button")
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                    modifier = Modifier.padding(horizontal = 8.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Save,
-                                        contentDescription = "Guardar versión",
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(14.dp)
-                                    )
-                                    Text(
-                                        text = "Capturar",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
-
-                            // View history button
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                                modifier = Modifier
-                                    .height(32.dp)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .clickable { showVersionsDialog = true }
-                                    .testTag("history_versions_button")
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                    modifier = Modifier.padding(horizontal = 8.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.History,
-                                        contentDescription = "Historial",
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(14.dp)
-                                    )
-                                    Text(
-                                        text = "Versiones (${chapterVersions.size})",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Pomodoro Writing Timer & Telemetry Card
-            Card(
-                shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
-                modifier = Modifier.fillMaxWidth().testTag("pomodoro_timer_card")
-            ) {
+                // 2. Compact Pomodoro Bar & Status Pill (Matches screen.png)
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    // Pomodoro Widget
+                    Surface(
+                        shape = CircleShape,
+                        color = Color(0xFFF5EFE6),
+                        border = BorderStroke(1.dp, Color(0xFFE8DDCF)),
+                        modifier = Modifier.clip(CircleShape)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Timer,
-                            contentDescription = null,
-                            tint = if (isTimerRunning) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        val minutes = timerSeconds / 60
-                        val seconds = timerSeconds % 60
-                        val timerFormatted = String.format("%02d:%02d", minutes, seconds)
-                        Column {
-                            Text(
-                                text = "Sesión Pomodoro: $timerFormatted",
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .clip(CircleShape)
+                                    .background(TintaAccent)
                             )
+                            val minutes = timerSeconds / 60
+                            val seconds = timerSeconds % 60
+                            val timerFormatted = String.format("%02d:%02d", minutes, seconds)
                             Text(
-                                text = "+$wordsWrittenInSession palabras escritas en la sesión",
+                                text = timerFormatted,
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.primary
+                                fontWeight = FontWeight.Bold,
+                                color = TintaCharcoal
                             )
+                            Text(
+                                text = "· $wordsWrittenInSession palabras hoy",
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                color = TintaMuted
+                            )
+                            IconButton(
+                                onClick = { viewModel.toggleTimer() },
+                                modifier = Modifier.size(20.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (isTimerRunning) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                    contentDescription = if (isTimerRunning) "Pausar" else "Iniciar",
+                                    tint = TintaAccent,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                            }
                         }
                     }
 
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        IconButton(
-                            onClick = { viewModel.toggleTimer() },
-                            modifier = Modifier
-                                .size(32.dp)
-                                .clip(CircleShape)
-                                .background(if (isTimerRunning) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer)
-                                .testTag("toggle_pomodoro_button")
+                    // Draft status & Save checkmark
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            modifier = Modifier.clickable { viewModel.toggleChapterFinished() }
                         ) {
-                            Icon(
-                                imageVector = if (isTimerRunning) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                contentDescription = if (isTimerRunning) "Pausar" else "Iniciar",
-                                tint = if (isTimerRunning) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
-                                modifier = Modifier.size(18.dp)
+                            Text(
+                                text = if (isFinished) "✓ Terminado" else "Borrador",
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                color = TintaMuted,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                             )
                         }
 
-                        IconButton(
-                            onClick = { viewModel.resetTimer() },
-                            modifier = Modifier
-                                .size(32.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-                                .testTag("reset_pomodoro_button")
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Refresh,
-                                contentDescription = "Reiniciar Pomodoro",
-                                tint = MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.size(16.dp)
+                                imageVector = Icons.Default.Check,
+                                contentDescription = null,
+                                tint = Color(0xFF10B981),
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Text(
+                                text = "Guardado",
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                color = Color(0xFF047857),
+                                fontWeight = FontWeight.Medium
                             )
                         }
                     }
                 }
-            }
 
-            // Manuscript Canvas (Editorial Live Writing Canvas)
-            val canvasBg = when (paperTexture) {
-                "parchment" -> Color(0xFFFBF0D9)
-                "lined" -> Color(0xFFF1F5F9)
-                "grid" -> Color(0xFFE2E8F0)
-                else -> MaterialTheme.colorScheme.surfaceContainerLow
-            }
+                // 3. Manuscript Paper Sheet (Paper Texture & Editorial Look matching screen.png)
+                val canvasBg = when (paperTexture) {
+                    "parchment" -> TintaCream
+                    "lined" -> TintaPaperLined
+                    "grid" -> TintaPaperGrid
+                    else -> MaterialTheme.colorScheme.surfaceContainerLow
+                }
 
-            val lineOverlayColor = when (paperTexture) {
-                "parchment" -> Color(0xFFD9C3A3)
-                "lined" -> Color(0xFF94A3B8)
-                "grid" -> Color(0xFFCBD5E1)
-                else -> Color.Transparent
-            }
+                val lineOverlayColor = when (paperTexture) {
+                    "parchment" -> Color(0xFFD9C3A3)
+                    "lined" -> Color(0xFF94A3B8)
+                    "grid" -> Color(0xFFCBD5E1)
+                    else -> Color.Transparent
+                }
 
-            val textOnCanvasColor = when (paperTexture) {
-                "parchment" -> Color(0xFF2C1D11)
-                "lined" -> Color(0xFF0F172A)
-                "grid" -> Color(0xFF0F172A)
-                else -> MaterialTheme.colorScheme.onSurface
-            }
-
-            Surface(
-                shape = RoundedCornerShape(16.dp),
-                color = canvasBg,
-                tonalElevation = 2.dp,
-                border = if (isZenMode) BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)) else BorderStroke(1.dp, lineOverlayColor.copy(alpha = 0.5f)),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("manuscript_canvas")
-            ) {
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    // Pattern overlay for Lined / Grid
-                    if (paperTexture == "lined" || paperTexture == "grid") {
-                        Canvas(modifier = Modifier.matchParentSize()) {
-                            val strokeWidth = 1f
-                            val step = 28.dp.toPx()
-                            if (paperTexture == "lined" || paperTexture == "grid") {
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = canvasBg,
+                    shadowElevation = 4.dp,
+                    border = BorderStroke(1.dp, Color(0xFFE9DFD1)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("manuscript_canvas")
+                ) {
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        // Pattern overlay for Lined / Grid
+                        if (paperTexture == "lined" || paperTexture == "grid") {
+                            Canvas(modifier = Modifier.matchParentSize()) {
+                                val strokeWidth = 1f
+                                val step = 28.dp.toPx()
                                 var y = step
                                 while (y < size.height) {
                                     drawLine(
@@ -759,108 +497,248 @@ fun EscribirScreen(
                                     )
                                     y += step
                                 }
-                            }
-                            if (paperTexture == "grid") {
-                                var x = step
-                                while (x < size.width) {
-                                    drawLine(
-                                        color = lineOverlayColor.copy(alpha = 0.35f),
-                                        start = Offset(x, 0f),
-                                        end = Offset(x, size.height),
-                                        strokeWidth = strokeWidth
-                                    )
-                                    x += step
+                                if (paperTexture == "grid") {
+                                    var x = step
+                                    while (x < size.width) {
+                                        drawLine(
+                                            color = lineOverlayColor.copy(alpha = 0.35f),
+                                            start = Offset(x, 0f),
+                                            end = Offset(x, size.height),
+                                            strokeWidth = strokeWidth
+                                        )
+                                        x += step
+                                    }
                                 }
+                            }
+                        }
+
+                        Column(
+                            modifier = Modifier.padding(20.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            // Sheet Header
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text(
+                                        text = "MANUSCRITO ORIGINAL",
+                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                        color = TintaAccent,
+                                        fontWeight = FontWeight.Bold,
+                                        letterSpacing = 1.2.sp
+                                    )
+                                    Text(
+                                        text = "Primera edición · Borrador de autor",
+                                        style = TextStyle(fontFamily = NewsreaderFontFamily, fontStyle = FontStyle.Italic, fontSize = 11.sp),
+                                        color = TintaMuted
+                                    )
+                                }
+
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = Color.White.copy(alpha = 0.7f),
+                                    border = BorderStroke(1.dp, Color(0xFFE8DDCF))
+                                ) {
+                                    Text(
+                                        text = currentChapter?.title?.uppercase() ?: "DEDICATORIA",
+                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                                        color = TintaMuted,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                    )
+                                }
+                            }
+
+                            // Editable Prose Editor
+                            val editorFontFamily = if (selectedFont == "Newsreader") NewsreaderFontFamily else PlusJakartaSansFontFamily
+                            BasicTextField(
+                                value = tfv,
+                                onValueChange = { newTfv ->
+                                    tfv = newTfv
+                                    if (newTfv.text != chapterContent) {
+                                        viewModel.updateChapterContent(newTfv.text)
+                                    }
+                                },
+                                textStyle = TextStyle(
+                                    fontFamily = editorFontFamily,
+                                    fontSize = 18.sp,
+                                    lineHeight = 28.sp,
+                                    color = TintaCharcoal
+                                ),
+                                cursorBrush = SolidColor(TintaAccent),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(340.dp)
+                                    .testTag("editable_manuscript_text")
+                            )
+
+                            // Page Watermark
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 8.dp),
+                                contentAlignment = Alignment.BottomEnd
+                            ) {
+                                Text(
+                                    text = "PÁG. 1 · TINTA & TRAMA",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                                    color = TintaMuted.copy(alpha = 0.6f),
+                                    letterSpacing = 1.2.sp
+                                )
                             }
                         }
                     }
+                }
+            }
 
-                    Column(
-                        modifier = Modifier.padding(20.dp),
-                        verticalArrangement = Arrangement.spacedBy(14.dp)
-                    ) {
-                        // Header with icon & title
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "✍️",
-                                style = MaterialTheme.typography.headlineSmall
-                            )
-                            Text(
-                                text = currentChapter?.title?.uppercase() ?: "BORRADOR MAESTRO",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                letterSpacing = 1.4.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
+            // Margin Notes Section
+            SectionMarginNotes(
+                notes = marginNotes,
+                onAddPostIt = { viewModel.openCreateModal("note") },
+                onDeleteNote = { noteId -> viewModel.deleteMarginNote(noteId) }
+            )
 
-                        // Interactive Text Editor (Persists directly to Chapter entity in Room)
-                        val editorFontFamily = if (selectedFont == "Newsreader") NewsreaderFontFamily else PlusJakartaSansFontFamily
-                        BasicTextField(
-                            value = tfv,
-                            onValueChange = { newTfv ->
-                                tfv = newTfv
-                                if (newTfv.text != chapterContent) {
-                                    viewModel.updateChapterContent(newTfv.text)
-                                }
-                            },
-                            textStyle = TextStyle(
-                                fontFamily = editorFontFamily,
-                                fontSize = 17.sp,
-                                lineHeight = 28.sp,
-                                color = textOnCanvasColor
-                            ),
-                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+            Spacer(modifier = Modifier.height(110.dp))
+        }
+
+        // 4. Quick Note Floating Action Button (FAB)
+        FloatingActionButton(
+            onClick = { viewModel.openCreateModal("note") },
+            shape = CircleShape,
+            containerColor = TintaAccent,
+            contentColor = Color.White,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(bottom = 80.dp, end = 20.dp)
+                .size(48.dp)
+        ) {
+            Icon(imageVector = Icons.Default.Edit, contentDescription = "Nueva nota rápida", modifier = Modifier.size(20.dp))
+        }
+
+        // 5. Ergonomic Writer's Dock Toolbar (Bottom Dock matching screen.png / code.html)
+        Surface(
+            color = Color(0xFFFAF6EE).copy(alpha = 0.95f),
+            tonalElevation = 8.dp,
+            border = BorderStroke(1.dp, Color(0xFFE8DDCF)),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                // Top Row: Paper Textures Pill Tabs
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.horizontalScroll(rememberScrollState())
+                ) {
+                    Text(
+                        text = "PAPEL:",
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                        color = TintaMuted,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    PaperChip(
+                        label = "Pergamino",
+                        dotColor = Color(0xFFD97706),
+                        isSelected = paperTexture == "parchment",
+                        onClick = { viewModel.setPaperTexture("parchment") }
+                    )
+                    PaperChip(
+                        label = "Limpio",
+                        dotColor = Color(0xFFA8A29E),
+                        isSelected = paperTexture == "plain",
+                        onClick = { viewModel.setPaperTexture("plain") }
+                    )
+                    PaperChip(
+                        label = "Rayado",
+                        dotColor = Color(0xFF60A5FA),
+                        isSelected = paperTexture == "lined",
+                        onClick = { viewModel.setPaperTexture("lined") }
+                    )
+                    PaperChip(
+                        label = "Retícula",
+                        dotColor = Color(0xFF34D399),
+                        isSelected = paperTexture == "grid",
+                        onClick = { viewModel.setPaperTexture("grid") }
+                    )
+                }
+
+                // Bottom Row: Formatting Tools & Musas Assistant
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Formatting Tools Group
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        FormatToolButton(text = "B", isBold = true, onClick = {
+                            viewModel.applyMarkdownFormat("bold", tfv.selection.start, tfv.selection.end)
+                        })
+                        FormatToolButton(text = "I", isItalic = true, onClick = {
+                            viewModel.applyMarkdownFormat("italic", tfv.selection.start, tfv.selection.end)
+                        })
+                        FormatToolButton(text = "H1", isBold = true, onClick = {
+                            viewModel.applyMarkdownFormat("header", tfv.selection.start, tfv.selection.end)
+                        })
+                        FormatIconButton(icon = Icons.Default.FormatQuote, onClick = {
+                            viewModel.applyMarkdownFormat("quote", tfv.selection.start, tfv.selection.end)
+                        })
+                        FormatIconButton(icon = Icons.Default.FormatListBulleted, onClick = {
+                            viewModel.applyMarkdownFormat("list", tfv.selection.start, tfv.selection.end)
+                        })
+                    }
+
+                    // Divider
+                    Box(modifier = Modifier.height(20.dp).width(1.dp).background(Color(0xFFE8DDCF)))
+
+                    // Assistant / History Group
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        // Musas Creative Craft Assist
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = TintaAccent.copy(alpha = 0.1f),
+                            border = BorderStroke(1.dp, TintaAccent.copy(alpha = 0.3f)),
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .height(340.dp)
-                                .testTag("editable_manuscript_text")
-                        )
-
-                        // Footer Status
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                                .height(32.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable {
+                                    viewModel.showToast("✨ Musas: 'Prueba cambiar el ritmo de la frase introduciendo una metáfora sensorial'")
+                                }
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                modifier = Modifier.padding(horizontal = 8.dp)
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.Draw,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                                Text(
-                                    text = "Tinta activa",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                Icon(imageVector = Icons.Default.AutoFixHigh, contentDescription = null, tint = TintaAccent, modifier = Modifier.size(14.dp))
+                                Text("Musas", style = MaterialTheme.typography.labelSmall, color = TintaAccent, fontWeight = FontWeight.Bold)
                             }
-                            Text(
-                                text = "${chapterContent.length} caracteres",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                        }
+
+                        // History Versions Button
+                        IconButton(
+                            onClick = { showVersionsDialog = true },
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color.White)
+                                .border(1.dp, Color(0xFFE8DDCF), RoundedCornerShape(8.dp))
+                        ) {
+                            Icon(imageVector = Icons.Default.History, contentDescription = "Historial", tint = TintaMuted, modifier = Modifier.size(16.dp))
                         }
                     }
                 }
             }
         }
-
-        // Section Margin Notes
-        SectionMarginNotes(
-            notes = marginNotes,
-            onAddPostIt = { viewModel.openCreateModal("note") },
-            onDeleteNote = { noteId -> viewModel.deleteMarginNote(noteId) }
-        )
 
         // Version History Dialog
         if (showVersionsDialog) {
@@ -873,8 +751,95 @@ fun EscribirScreen(
                 }
             )
         }
+    }
+}
 
-        Spacer(modifier = Modifier.height(100.dp))
+@Composable
+private fun PaperChip(
+    label: String,
+    dotColor: Color,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Surface(
+        shape = CircleShape,
+        color = if (isSelected) Color(0xFFF4ECE1) else Color.White.copy(alpha = 0.7f),
+        border = BorderStroke(1.dp, if (isSelected) Color(0xFFE8DDCF) else Color(0xFFE8DDCF).copy(alpha = 0.5f)),
+        modifier = Modifier
+            .clip(CircleShape)
+            .clickable { onClick() }
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(6.dp)
+                    .clip(CircleShape)
+                    .background(dotColor)
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                color = if (isSelected) TintaCharcoal else TintaMuted,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+            )
+        }
+    }
+}
+
+@Composable
+private fun FormatToolButton(
+    text: String,
+    isBold: Boolean = false,
+    isItalic: Boolean = false,
+    onClick: () -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = Color.White,
+        border = BorderStroke(1.dp, Color(0xFFE8DDCF)),
+        modifier = Modifier
+            .size(32.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .clickable { onClick() }
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = if (isBold) FontWeight.Bold else FontWeight.Normal,
+                fontStyle = if (isItalic) FontStyle.Italic else FontStyle.Normal,
+                color = TintaCharcoal
+            )
+        }
+    }
+}
+
+@Composable
+private fun FormatIconButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    onClick: () -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = Color.White,
+        border = BorderStroke(1.dp, Color(0xFFE8DDCF)),
+        modifier = Modifier
+            .size(32.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .clickable { onClick() }
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = TintaMuted,
+                modifier = Modifier.size(14.dp)
+            )
+        }
     }
 }
 
@@ -891,7 +856,7 @@ private fun VersionHistoryDialog(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Icon(imageVector = Icons.Default.History, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Icon(imageVector = Icons.Default.History, contentDescription = null, tint = TintaAccent)
                 Text(text = "Historial de Versiones")
             }
         },
@@ -899,13 +864,13 @@ private fun VersionHistoryDialog(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(300.dp)
+                    .height(280.dp)
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 if (versions.isEmpty()) {
                     Text(
-                        text = "Aún no hay versiones o borradores guardados para este capítulo. Presiona 'Capturar' en la barra para guardar una versión.",
+                        text = "Aún no hay versiones o borradores guardados para este capítulo.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -929,7 +894,7 @@ private fun VersionHistoryDialog(
                                         text = "⏱️ ${version.timeFormatted}",
                                         style = MaterialTheme.typography.labelMedium,
                                         fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.primary
+                                        color = TintaAccent
                                     )
                                     Text(
                                         text = "${version.wordCount} palabras",
@@ -938,7 +903,7 @@ private fun VersionHistoryDialog(
                                     )
                                 }
                                 Text(
-                                    text = version.content.take(100) + if (version.content.length > 100) "..." else "",
+                                    text = version.content.take(80) + if (version.content.length > 80) "..." else "",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurface,
                                     maxLines = 2
@@ -948,7 +913,7 @@ private fun VersionHistoryDialog(
                                     shape = RoundedCornerShape(8.dp),
                                     modifier = Modifier.align(Alignment.End)
                                 ) {
-                                    Text("Restaurar este borrador")
+                                    Text("Restaurar")
                                 }
                             }
                         }
@@ -962,87 +927,6 @@ private fun VersionHistoryDialog(
             }
         }
     )
-}
-
-@Composable
-private fun TextureChip(
-    icon: String,
-    label: String,
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
-    Surface(
-        shape = CircleShape,
-        color = if (isSelected) MaterialTheme.colorScheme.surfaceContainerHighest else MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.5f),
-        modifier = Modifier
-            .clip(CircleShape)
-            .clickable { onClick() }
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-        ) {
-            Text(text = icon, fontSize = 11.sp)
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall,
-                color = if (isSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-            )
-        }
-    }
-}
-
-@Composable
-private fun FormatButton(
-    text: String,
-    isBold: Boolean = false,
-    isItalic: Boolean = false,
-    onClick: () -> Unit
-) {
-    Surface(
-        shape = RoundedCornerShape(8.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHighest,
-        modifier = Modifier
-            .size(32.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .clickable { onClick() }
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            Text(
-                text = text,
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = if (isBold) FontWeight.Bold else FontWeight.Normal,
-                fontStyle = if (isItalic) FontStyle.Italic else FontStyle.Normal,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-        }
-    }
-}
-
-@Composable
-private fun FormatIconButton(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    onClick: () -> Unit
-) {
-    Surface(
-        shape = RoundedCornerShape(8.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHighest,
-        modifier = Modifier
-            .size(32.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .clickable { onClick() }
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(16.dp)
-            )
-        }
-    }
 }
 
 @Composable
@@ -1064,35 +948,24 @@ private fun SectionMarginNotes(
                 Icon(
                     imageVector = Icons.Default.PushPin,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
+                    tint = TintaAccent,
                     modifier = Modifier.size(20.dp)
                 )
                 Text(
                     text = "Notas al Margen",
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = MaterialTheme.colorScheme.onSurface
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = TintaCharcoal
                 )
-                Surface(
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.surfaceContainerHigh
-                ) {
-                    Text(
-                        text = "${notes.size}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                    )
-                }
             }
 
             Button(
                 onClick = onAddPostIt,
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary
-                ),
-                modifier = Modifier.testTag("add_postit_button")
+                    containerColor = TintaAccent,
+                    contentColor = Color.White
+                )
             ) {
                 Icon(imageVector = Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(4.dp))
@@ -1101,92 +974,44 @@ private fun SectionMarginNotes(
         }
 
         notes.forEachIndexed { index, note ->
-            val rotation = when (index % 3) {
-                0 -> -0.8f
-                1 -> 0.8f
-                else -> -0.4f
-            }
-            val cardBg = when (note.colorTag) {
-                "amber" -> MaterialTheme.colorScheme.secondaryContainer
-                "lavender" -> MaterialTheme.colorScheme.surfaceContainerHighest
-                else -> MaterialTheme.colorScheme.surfaceContainerHigh
-            }
-            val titleColor = when (note.colorTag) {
-                "amber" -> MaterialTheme.colorScheme.secondary
-                "lavender" -> MaterialTheme.colorScheme.primary
-                else -> MaterialTheme.colorScheme.secondary
-            }
-
             Card(
                 shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(containerColor = cardBg),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .rotate(rotation)
-                    .testTag("postit_card_${note.id}")
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    // Tactile Pin Head
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.TopCenter)
-                            .size(12.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primary)
-                    )
-
-                    Column(
-                        modifier = Modifier.padding(14.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                Column(
+                    modifier = Modifier.padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = note.category,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = titleColor,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 1.2.sp
-                            )
-                            IconButton(
-                                onClick = { onDeleteNote(note.id) },
-                                modifier = Modifier.size(24.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Close,
-                                    contentDescription = "Eliminar nota",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                            }
-                        }
-
                         Text(
-                            text = note.content,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            lineHeight = 20.sp
+                            text = note.category,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TintaAccent,
+                            fontWeight = FontWeight.Bold
                         )
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
+                        IconButton(
+                            onClick = { onDeleteNote(note.id) },
+                            modifier = Modifier.size(24.dp)
                         ) {
-                            Text(
-                                text = note.scopeTag,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = note.timeLabel,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Eliminar nota",
+                                tint = TintaMuted,
+                                modifier = Modifier.size(14.dp)
                             )
                         }
                     }
+
+                    Text(
+                        text = note.content,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TintaCharcoal
+                    )
                 }
             }
         }

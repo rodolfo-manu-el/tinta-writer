@@ -33,7 +33,6 @@ import com.example.ui.TintaTab
 import com.example.ui.TintaViewModel
 import com.example.ui.components.BackupDialog
 import com.example.ui.components.CreateItemModal
-import com.example.ui.components.ImportJsonDialog
 import com.example.ui.components.TintaBottomBar
 import com.example.ui.components.TintaToast
 import com.example.ui.components.TintaTopHeader
@@ -59,7 +58,6 @@ class MainActivity : ComponentActivity() {
             val showCreateModal by viewModel.showCreateModal.collectAsStateWithLifecycle()
             val createType by viewModel.createType.collectAsStateWithLifecycle()
             val showBackupDialog by viewModel.showBackupDialog.collectAsStateWithLifecycle()
-            val showImportDialog by viewModel.showImportDialog.collectAsStateWithLifecycle()
             val backupJsonString by viewModel.backupJsonString.collectAsStateWithLifecycle()
 
             // Handle system back navigation smoothly
@@ -160,16 +158,6 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
-                        if (showImportDialog) {
-                            val context = LocalContext.current
-                            ImportJsonDialog(
-                                onDismiss = { viewModel.closeImportDialog() },
-                                onImportJson = { viewModel.importJson(it) },
-                                onImportUri = { uri -> viewModel.importJsonFromUri(context, uri) },
-                                onLoadSummerLove = { viewModel.loadSummerLoveStory() },
-                                onClearAll = { viewModel.clearAllStories() }
-                            )
-                        }
                     }
                 }
             }

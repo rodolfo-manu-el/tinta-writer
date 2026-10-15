@@ -154,27 +154,17 @@ fun BibliotecaScreen(
                         modifier = Modifier.size(44.dp)
                     )
                     Text(
-                        text = "No tienes historias guardadas. Comienza a escribir o importa tu archivo .json",
+                        text = "No tienes historias guardadas. Comienza a crear tu primera historia.",
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurface,
                         textAlign = TextAlign.Center
                     )
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    Button(
+                        onClick = { viewModel.openCreateModal("novel") },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                        modifier = Modifier.testTag("empty_state_create_button")
                     ) {
-                        Button(
-                            onClick = { viewModel.openCreateModal("novel") },
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                            modifier = Modifier.testTag("empty_state_create_button")
-                        ) {
-                            Text("Comenzar a escribir")
-                        }
-                        OutlinedButton(
-                            onClick = { viewModel.openImportDialog() },
-                            modifier = Modifier.testTag("empty_state_import_button")
-                        ) {
-                            Text("Importar .json")
-                        }
+                        Text("Comenzar a escribir")
                     }
                 }
             }
@@ -243,8 +233,7 @@ fun BibliotecaScreen(
 
         // Local Backup Vault
         SectionBackupVault(
-            onBackup = { viewModel.createBackup() },
-            onImport = { viewModel.importBackupMock() }
+            onBackup = { viewModel.createBackup() }
         )
 
         Spacer(modifier = Modifier.height(100.dp))
@@ -911,8 +900,7 @@ private fun SectionSecondaryNovels(
 
 @Composable
 private fun SectionBackupVault(
-    onBackup: () -> Unit,
-    onImport: () -> Unit
+    onBackup: () -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
@@ -923,92 +911,44 @@ private fun SectionBackupVault(
             letterSpacing = 1.2.sp
         )
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        Card(
+            shape = RoundedCornerShape(14.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onBackup() }
+                .testTag("backup_button")
         ) {
-            // Respaldar biblioteca
-            Card(
-                shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-                modifier = Modifier
-                    .weight(1f)
-                    .clickable { onBackup() }
-                    .testTag("backup_button")
+            Column(
+                modifier = Modifier.padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                Column(
-                    modifier = Modifier.padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                Box(
+                    modifier = Modifier
+                        .size(34.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(MaterialTheme.colorScheme.surfaceContainerHighest),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(34.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(MaterialTheme.colorScheme.surfaceContainerHighest),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.DownloadForOffline,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                    Text(
-                        text = "Respaldar biblioteca",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "Descarga archivo .json encriptado",
-                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        lineHeight = 14.sp
+                    Icon(
+                        imageVector = Icons.Default.DownloadForOffline,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp)
                     )
                 }
-            }
-
-            // Importar copia
-            Card(
-                shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-                modifier = Modifier
-                    .weight(1f)
-                    .clickable { onImport() }
-                    .testTag("import_button")
-            ) {
-                Column(
-                    modifier = Modifier.padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(34.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(MaterialTheme.colorScheme.surfaceContainerHighest),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.UploadFile,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.secondary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                    Text(
-                        text = "Importar copia",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "Restaurar historias de respaldo",
-                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        lineHeight = 14.sp
-                    )
-                }
+                Text(
+                    text = "Respaldar biblioteca",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "Exporta tus manuscritos y personajes de forma segura",
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    lineHeight = 14.sp
+                )
             }
         }
     }

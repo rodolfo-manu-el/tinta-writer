@@ -124,6 +124,15 @@ fun EscribirScreen(
         mutableStateOf(TextFieldValue(text = chapterContent, selection = TextRange(chapterContent.length)))
     }
 
+    androidx.compose.runtime.LaunchedEffect(chapterContent, activeChapterId) {
+        if (tfv.text != chapterContent) {
+            tfv = TextFieldValue(
+                text = chapterContent,
+                selection = TextRange(chapterContent.length)
+            )
+        }
+    }
+
     var isChapterDropdownExpanded by remember { mutableStateOf(false) }
     var showVersionsDialog by remember { mutableStateOf(false) }
 

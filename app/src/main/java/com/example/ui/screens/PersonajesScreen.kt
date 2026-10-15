@@ -301,22 +301,12 @@ fun PersonajesScreen(
                         color = MaterialTheme.colorScheme.onSurface,
                         textAlign = TextAlign.Center
                     )
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    Button(
+                        onClick = { viewModel.openCreateModal("character") },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
+                        modifier = Modifier.testTag("empty_state_create_character_button")
                     ) {
-                        Button(
-                            onClick = { viewModel.openCreateModal("character") },
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
-                            modifier = Modifier.testTag("empty_state_create_character_button")
-                        ) {
-                            Text("Añadir personaje")
-                        }
-                        OutlinedButton(
-                            onClick = { viewModel.openImportDialog() },
-                            modifier = Modifier.testTag("empty_state_import_character_button")
-                        ) {
-                            Text("Importar .json")
-                        }
+                        Text("Añadir personaje")
                     }
                 }
             }

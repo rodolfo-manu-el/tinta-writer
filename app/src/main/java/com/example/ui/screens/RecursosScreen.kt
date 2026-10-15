@@ -146,7 +146,7 @@ fun RecursosScreen(
                         Column(modifier = Modifier.padding(10.dp)) {
                             Text("HISTORIAS", style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp), color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text("${novels.size}", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.secondary)
-                            Text("en desarrollo", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(if (novels.size == 1) "historia activa" else "historias activas", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                     Surface(

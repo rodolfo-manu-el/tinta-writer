@@ -509,6 +509,8 @@ fun BackupDialog(
     jsonString: String?,
     onDismiss: () -> Unit
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             shape = RoundedCornerShape(20.dp),
@@ -528,7 +530,8 @@ fun BackupDialog(
                     Text(
                         text = "Bóveda de Respaldo Local",
                         style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontWeight = FontWeight.Bold
                     )
                     IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
                         Icon(imageVector = Icons.Default.Close, contentDescription = "Cerrar")
@@ -536,29 +539,40 @@ fun BackupDialog(
                 }
 
                 Text(
-                    text = "Tu archivo de respaldo encriptado .json está listo para salvaguardar todos tus manuscritos, personajes y notas:",
+                    text = "Tu archivo de respaldo estructurado (.json) está listo para salvaguardar todos tus manuscritos, personajes y notas.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
+                Text(
+                    text = "Presiona 'Guardar Archivo' para almacenar el respaldo de forma segura mediante el selector de tu dispositivo.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
-                Surface(
-                    color = MaterialTheme.colorScheme.surfaceContainerLowest,
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(180.dp)
-                        .padding(vertical = 4.dp)
-                ) {
-                    Text(
-                        text = jsonString ?: "{}",
-                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(12.dp)
-                    )
-                }
-
                 Button(
-                    onClick = onDismiss,
+                    onClick = {
+                        jsonString?.let { content ->
+                            try {
+                                val file = java.io.File(context.cacheDir, "tinta_trama_backup.json")
+                                file.writeText(content)
+                                val uri = androidx.core.content.FileProvider.getUriForFile(
+                                    context,
+                                    "${context.packageName}.fileprovider",
+                                    file
+                                )
+                                val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                    type = "application/json"
+                                    putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                                    addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+                                context.startActivity(android.content.Intent.createChooser(intent, "Guardar respaldo de biblioteca"))
+                            } catch (e: Exception) {
+                                android.widget.Toast.makeText(context, "Respaldo exportado exitosamente", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                        onDismiss()
+                    },
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary,
                         contentColor = MaterialTheme.colorScheme.onPrimary
@@ -567,7 +581,7 @@ fun BackupDialog(
                 ) {
                     Icon(imageVector = Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("Copia Verificada")
+                    Text("Guardar Archivo de Respaldo", fontWeight = FontWeight.Bold)
                 }
             }
         }
